@@ -40,7 +40,8 @@ struct NoteReviewView: View {
                 Color.clear.frame(width: 24)
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 10)
+            .padding(.top, 54)
+            .padding(.bottom, 10)
             .background(C.bg)
 
             // Banner
@@ -108,6 +109,10 @@ struct NoteReviewView: View {
         }
         .background(C.bg.ignoresSafeArea())
         .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .ignoresSafeArea(.container, edges: .top)
+        .safeAreaInset(edge: .top) { Color.clear.frame(height: 0) }
         .onAppear { note = encounter.finalNote ?? encounter.originalNote ?? [:] }
         .sheet(item: $editingSection) { section in
             SectionEditor(title: section.key, text: $editText, onSave: {
