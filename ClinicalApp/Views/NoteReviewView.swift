@@ -18,7 +18,7 @@ struct NoteReviewView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Header — pinned to top
             HStack {
                 Button { app.home() } label: {
                     Image(systemName: "chevron.left")
@@ -37,10 +37,11 @@ struct NoteReviewView: View {
                         .foregroundColor(C.textDim)
                 }
                 Spacer()
-                Color.clear.frame(width: 24) // balance
+                Color.clear.frame(width: 24)
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.vertical, 10)
+            .background(C.bg)
 
             // Banner
             if !banner.isEmpty {
@@ -53,7 +54,7 @@ struct NoteReviewView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            // Sections
+            // Sections — fill remaining space
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(orderedSections, id: \.0) { key, content in
@@ -64,12 +65,12 @@ struct NoteReviewView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
             }
 
             // Bottom bar
             HStack(spacing: 10) {
-                // New
                 Button { app.home() } label: {
                     Text("New")
                         .font(.system(size: 14, weight: .medium))
@@ -80,7 +81,6 @@ struct NoteReviewView: View {
                 }
                 .buttonStyle(PressStyle())
 
-                // Save Final
                 Button { saveFinal() } label: {
                     Text("Save Final")
                         .font(.system(size: 14, weight: .semibold))
@@ -91,7 +91,6 @@ struct NoteReviewView: View {
                 }
                 .buttonStyle(PressStyle())
 
-                // Copy to Clipboard
                 Button { copyToClipboard() } label: {
                     Text("Copy")
                         .font(.system(size: 14, weight: .semibold))
@@ -120,7 +119,6 @@ struct NoteReviewView: View {
         }
     }
 
-    // MARK: - Ordered sections
     private var orderedSections: [(String, String)] {
         var result: [(String, String)] = []
         for key in sectionOrder {
@@ -132,7 +130,6 @@ struct NoteReviewView: View {
         return result
     }
 
-    // MARK: - Save Final
     private func saveFinal() {
         Task {
             do {
@@ -152,16 +149,10 @@ struct NoteReviewView: View {
         }
     }
 
-    // MARK: - Copy to Clipboard
     private func copyToClipboard() {
         let text = orderedSections.map { "\($0.0)\n\($0.1)" }.joined(separator: "\n\n")
         UIPasteboard.general.string = text
         withAnimation { banner = "Copied to clipboard" }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { withAnimation { banner = "" } }
     }
-}
-
-// Make String work with sheet(item:)
-extension String: @retroactive Identifiable {
-    public var id: String { self }
 }

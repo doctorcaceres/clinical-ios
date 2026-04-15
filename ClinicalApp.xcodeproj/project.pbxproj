@@ -39,7 +39,7 @@
 		82EB3C3B90BA83D20F228822 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		88F59F4B71E2426DA3C06C79 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		BEFEC0DB38F6C6E9C58CC00D /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
-		C89ED206CAC819B8135EB60D /* ClinicalApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ClinicalApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C89ED206CAC819B8135EB60D /* ClinicalApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClinicalApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C923D34EBD45C8038984C7B5 /* RecordButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordButton.swift; sourceTree = "<group>"; };
 		C9B2A66166D97C63052843FF /* SectionEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionEditor.swift; sourceTree = "<group>"; };
 		D30B1A4B1BFBF400716E7B95 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
@@ -227,6 +227,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 593A6D384C;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Clinical;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clinical needs microphone access to record patient encounters";
@@ -314,6 +315,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 593A6D384C;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Clinical;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clinical needs microphone access to record patient encounters";
