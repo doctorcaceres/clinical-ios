@@ -1,15 +1,5 @@
 import SwiftUI
 import Security
-import NaturalLanguage
-
-// MARK: - Language detection (for note_embeddings metadata)
-func detectLanguage(_ text: String) -> String {
-    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return "en" }
-    let recognizer = NLLanguageRecognizer()
-    recognizer.processString(trimmed)
-    return recognizer.dominantLanguage?.rawValue ?? "en"
-}
 
 // MARK: - Color from hex
 extension Color {
