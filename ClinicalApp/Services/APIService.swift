@@ -122,6 +122,42 @@ enum APIService {
         return ChatResponse(text: text, ruleCount: count)
     }
 
+    // MARK: - Embed a finalized note (silent — called from Save Final)
+    static func embedNote(
+        userId: String,
+        encounterId: String,
+        encounterType: String,
+        sections: [String: String],
+        chiefConcern: String,
+        language: String,
+        recordingDuration: Int
+    ) async {
+        do {
+            let url = URL(string: "https://clinical-app-ten.vercel.app/api/embed-note")!
+            var req = URLRequest(url: url)
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.timeoutInterval = 60
+
+            let body: [String: Any] = [
+                "user_id": userId,       // TODO: Replace with authenticated user_id
+                "encounter_id": encounterId,
+                "encounter_type": encounterType,
+                "sections": sections,
+                "chief_concern": chiefConcern,
+                "language": language,
+                "recording_duration": recordingDuration,
+            ]
+
+            req.httpBody = try JSONSerialization.data(withJSONObject: body)
+            let (_, response) = try await URLSession.shared.data(for: req)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            print("[API] embed-note: HTTP \(status)")
+        } catch {
+            print("[API] embed-note error (silent): \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Save chat session summary (called on Done in Training Chat)
     static func saveChatSession(userId: String, history: [[String: String]], anthropicKey: String) async {
         // Fire-and-forget — errors are silently logged

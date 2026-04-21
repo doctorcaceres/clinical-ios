@@ -137,11 +137,17 @@ struct NoteReviewView: View {
 
                 // Silent style learning: compare original AI note with doctor's edits
                 // Fire-and-forget — no UI, no confirmation, no error display
+                // TODO: Replace with authenticated user_id
+                let uid = app.userId
+                let key = app.anthropicKey
+                let editedNote = note
+                let encId = encounter.id
+                let encType = encounter.encounterType
+                let elapsed = encounter.elapsed ?? 0
+                let cc = editedNote["Chief Concern"] ?? ""
+                let lang = detectLanguage(encounter.transcript ?? "")
+
                 if let originalNote = encounter.originalNote {
-                    let editedNote = note
-                    // TODO: Replace with authenticated user_id
-                    let uid = app.userId
-                    let key = app.anthropicKey
                     Task.detached {
                         await APIService.extractCorrections(
                             userId: uid,
@@ -150,6 +156,19 @@ struct NoteReviewView: View {
                             anthropicKey: key
                         )
                     }
+                }
+
+                // Silent note embedding for future vector search
+                Task.detached {
+                    await APIService.embedNote(
+                        userId: uid,
+                        encounterId: encId,
+                        encounterType: encType,
+                        sections: editedNote,
+                        chiefConcern: cc,
+                        language: lang,
+                        recordingDuration: elapsed
+                    )
                 }
             } catch {
                 banner = "Save failed: \(error.localizedDescription)"
