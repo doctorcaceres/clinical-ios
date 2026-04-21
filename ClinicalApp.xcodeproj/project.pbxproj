@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		07C26603E7C2129B713B19E1 /* TrainingProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A2C780825C950FB25D73C58 /* TrainingProcessingView.swift */; };
 		193C625BF6903AABFAF7E8CB /* ClinicalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36BDD08CD5264218D2E544E0 /* ClinicalApp.swift */; };
 		3534209A488094416F37E1BA /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88F59F4B71E2426DA3C06C79 /* SetupView.swift */; };
 		4B1C8CEA3CD20A1656DC5165 /* NoteSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6E06904E49C6594782FCCC9 /* NoteSection.swift */; };
@@ -22,6 +23,7 @@
 		C7FD9EBB5E4ED16FAED96FC2 /* RecordButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = C923D34EBD45C8038984C7B5 /* RecordButton.swift */; };
 		CB2BEEE506F9920A67036B7C /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02C9B8834445719EDB7BF26C /* AudioRecorder.swift */; };
 		D3913DCC98A3646908FF6ADB /* RecentNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29EC4FEF82DD4E4E11FA9C94 /* RecentNotesView.swift */; };
+		D4DD52964127A274974B5385 /* TrainingChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AD9D456F8AE11390AE7C808 /* TrainingChatView.swift */; };
 		F768F323E16608B534F7C611 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6513D92BFEDC5A5063A346B /* Constants.swift */; };
 		FA55CE28C2D5C284F579B52B /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30B1A4B1BFBF400716E7B95 /* RecordingView.swift */; };
 /* End PBXBuildFile section */
@@ -30,16 +32,19 @@
 		02C9B8834445719EDB7BF26C /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		02CE2A941801E1B5BCFA2572 /* Encounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Encounter.swift; sourceTree = "<group>"; };
 		11208606AD8D6E31945705E2 /* NoteReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteReviewView.swift; sourceTree = "<group>"; };
+		172070A239447A68D4EB60C9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		29EC4FEF82DD4E4E11FA9C94 /* RecentNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentNotesView.swift; sourceTree = "<group>"; };
 		36BDD08CD5264218D2E544E0 /* ClinicalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalApp.swift; sourceTree = "<group>"; };
 		383A527B6F309B83FD7FE189 /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
+		3A2C780825C950FB25D73C58 /* TrainingProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingProcessingView.swift; sourceTree = "<group>"; };
 		495FFF5AB22798627E081B68 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5AD9D456F8AE11390AE7C808 /* TrainingChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingChatView.swift; sourceTree = "<group>"; };
 		623D2E7241DCCD104F6D162B /* ProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingView.swift; sourceTree = "<group>"; };
 		768BB03C838668C73B74CEC6 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		82EB3C3B90BA83D20F228822 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		88F59F4B71E2426DA3C06C79 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		BEFEC0DB38F6C6E9C58CC00D /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
-		C89ED206CAC819B8135EB60D /* ClinicalApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClinicalApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C89ED206CAC819B8135EB60D /* ClinicalApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ClinicalApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C923D34EBD45C8038984C7B5 /* RecordButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordButton.swift; sourceTree = "<group>"; };
 		C9B2A66166D97C63052843FF /* SectionEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionEditor.swift; sourceTree = "<group>"; };
 		D30B1A4B1BFBF400716E7B95 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
@@ -79,6 +84,7 @@
 			children = (
 				495FFF5AB22798627E081B68 /* Assets.xcassets */,
 				36BDD08CD5264218D2E544E0 /* ClinicalApp.swift */,
+				172070A239447A68D4EB60C9 /* Info.plist */,
 				3C053399624F9DE8DE2B6136 /* Models */,
 				B5A0EE25B1862D07CB209B76 /* Services */,
 				DEB48E57C79AB55EF9759F91 /* Utilities */,
@@ -106,6 +112,8 @@
 				29EC4FEF82DD4E4E11FA9C94 /* RecentNotesView.swift */,
 				D30B1A4B1BFBF400716E7B95 /* RecordingView.swift */,
 				88F59F4B71E2426DA3C06C79 /* SetupView.swift */,
+				5AD9D456F8AE11390AE7C808 /* TrainingChatView.swift */,
+				3A2C780825C950FB25D73C58 /* TrainingProcessingView.swift */,
 				01BB8344FF6FB34F93AD4E90 /* Components */,
 			);
 			path = Views;
@@ -214,6 +222,8 @@
 				52D12EAE798796617654B73D /* SectionEditor.swift in Sources */,
 				3534209A488094416F37E1BA /* SetupView.swift in Sources */,
 				B4D9AB709666F46C56676740 /* SupabaseService.swift in Sources */,
+				D4DD52964127A274974B5385 /* TrainingChatView.swift in Sources */,
+				07C26603E7C2129B713B19E1 /* TrainingProcessingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -227,8 +237,8 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 593A6D384C;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ClinicalApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Clinical;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clinical needs microphone access to record patient encounters";
 				INFOPLIST_KEY_UIBackgroundModes = audio;
@@ -315,8 +325,8 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 593A6D384C;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ClinicalApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Clinical;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clinical needs microphone access to record patient encounters";
 				INFOPLIST_KEY_UIBackgroundModes = audio;

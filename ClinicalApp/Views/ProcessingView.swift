@@ -62,6 +62,7 @@ struct ProcessingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(C.bg.ignoresSafeArea())
         .navigationBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .task { await process() }
     }
 
@@ -101,10 +102,12 @@ struct ProcessingView: View {
             try await DB.shared.update(id: id, fields: fields)
 
             // 3. Generate note (separate call — doesn't risk transcription timeout)
+            // TODO: Replace with authenticated user_id
             try? await APIService.generateNote(
                 encounterId: id,
                 encounterType: type,
-                anthropicKey: app.anthropicKey
+                anthropicKey: app.anthropicKey,
+                userId: app.userId
             )
 
             stage = .done
