@@ -24,6 +24,7 @@ struct RecordingView: View {
                         .font(.system(size: 14))
                         .foregroundColor(Color(hex: 0x888888))
                 }
+                .buttonStyle(PressStyle())
                 .padding(.top, 16)
             }
 
@@ -199,5 +200,6 @@ struct RecordingView: View {
                 .font(.system(size: 14))
                 .foregroundColor(C.textDim)
         }
+        .buttonStyle(PressStyle())
     }
 }

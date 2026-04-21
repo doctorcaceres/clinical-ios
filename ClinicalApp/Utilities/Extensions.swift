@@ -71,11 +71,15 @@ struct ClinicalTitle: View {
     }
 }
 
+/// Instant-feedback button style. No iOS default delay, no highlight tint —
+/// just a snappy scale-to-0.97 on press that's visible before the finger lifts.
+/// Apply to every Button in the app so the tap response feels web-fast.
 struct PressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .contentShape(Rectangle())    // reliable tap target covering the label
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
     }
 }
 

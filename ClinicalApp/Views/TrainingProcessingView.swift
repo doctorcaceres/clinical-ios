@@ -53,6 +53,7 @@ struct TrainingProcessingView: View {
                         .font(.system(size: 14))
                         .foregroundColor(C.textDim)
                 }
+                .buttonStyle(PressStyle())
                 .padding(.bottom, 40)
             }
         }

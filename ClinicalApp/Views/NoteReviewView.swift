@@ -26,6 +26,7 @@ struct NoteReviewView: View {
                             .foregroundColor(C.textMuted)
                             .font(.system(size: 16))
                     }
+                    .buttonStyle(PressStyle())
                     Spacer()
                     VStack(spacing: 2) {
                         Text(encounter.displayType)

@@ -16,6 +16,7 @@ struct RecentNotesView: View {
                         Image(systemName: "chevron.left")
                             .foregroundColor(C.textMuted)
                     }
+                    .buttonStyle(PressStyle())
                     Spacer()
                     Text("RECENT NOTES")
                         .font(.system(size: 16, weight: .semibold))
