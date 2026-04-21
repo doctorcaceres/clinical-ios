@@ -4,51 +4,68 @@ struct RecentNotesView: View {
     @EnvironmentObject var app: AppState
     @State private var encounters: [Encounter] = []
     @State private var loading = true
+    @State private var loadError: String?
     @State private var deleteTarget: Encounter?
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Button { app.home() } label: {
-                    Image(systemName: "chevron.left")
-                        .foregroundColor(C.textMuted)
-                }
-                Spacer()
-                Text("RECENT NOTES")
-                    .font(.system(size: 16, weight: .semibold))
-                    .tracking(2)
-                    .foregroundColor(C.text)
-                Spacer()
-                Color.clear.frame(width: 24)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
-
-            if loading {
-                Spacer()
-                ProgressView().tint(C.accent)
-                Spacer()
-            } else if encounters.isEmpty {
-                Spacer()
-                Text("No encounters yet")
-                    .font(.system(size: 15))
-                    .foregroundColor(C.textDim)
-                Spacer()
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(encounters) { enc in
-                            encounterRow(enc)
-                        }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // Header
+                HStack {
+                    Button { app.home() } label: {
+                        Image(systemName: "chevron.left")
+                            .foregroundColor(C.textMuted)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 20)
+                    Spacer()
+                    Text("RECENT NOTES")
+                        .font(.system(size: 16, weight: .semibold))
+                        .tracking(2)
+                        .foregroundColor(C.text)
+                    Spacer()
+                    Color.clear.frame(width: 24)
                 }
-                .refreshable { await load() }
+
+                if loading {
+                    HStack {
+                        Spacer()
+                        ProgressView().tint(C.accent)
+                        Spacer()
+                    }
+                    .padding(.top, 20)
+                } else if let err = loadError {
+                    VStack(spacing: 8) {
+                        Text("Failed to load encounters")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(C.error)
+                        Text(err)
+                            .font(.system(size: 12))
+                            .foregroundColor(C.textMuted)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(C.errorBg)
+                    .cornerRadius(12)
+                    .padding(.top, 20)
+                } else if encounters.isEmpty {
+                    HStack {
+                        Spacer()
+                        Text("No encounters yet")
+                            .font(.system(size: 15))
+                            .foregroundColor(C.textDim)
+                        Spacer()
+                    }
+                    .padding(.top, 20)
+                } else {
+                    ForEach(encounters) { enc in
+                        encounterRow(enc)
+                    }
+                }
             }
+            .padding()
         }
-        .background(C.bg.ignoresSafeArea())
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(C.bg)
         .navigationBarHidden(true)
         .task { await load() }
         .alert("Delete this encounter?", isPresented: .init(
@@ -62,7 +79,6 @@ struct RecentNotesView: View {
         }
     }
 
-    // MARK: - Row
     private func encounterRow(_ enc: Encounter) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -95,7 +111,6 @@ struct RecentNotesView: View {
                     .foregroundColor(C.textDim)
             }
 
-            // Chief concern preview
             if let cc = enc.chiefConcern, !cc.isEmpty {
                 Text(cc)
                     .font(.system(size: 13))
@@ -147,10 +162,17 @@ struct RecentNotesView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(C.border, lineWidth: 1))
     }
 
-    // MARK: - Actions
     private func load() async {
         loading = true
-        encounters = (try? await DB.shared.encounters()) ?? []
+        loadError = nil
+        do {
+            encounters = try await DB.shared.encounters()
+            print("[RecentNotes] Loaded \(encounters.count) encounters")
+        } catch {
+            print("[RecentNotes] Failed to load encounters: \(error)")
+            loadError = error.localizedDescription
+            encounters = []
+        }
         loading = false
     }
 
@@ -164,7 +186,8 @@ struct RecentNotesView: View {
             try? await APIService.generateNote(
                 encounterId: enc.id,
                 encounterType: enc.encounterType,
-                anthropicKey: app.anthropicKey
+                anthropicKey: app.anthropicKey,
+                userId: app.userId
             )
             try? await DB.shared.update(id: enc.id, fields: ["status": "processing"])
             await load()
