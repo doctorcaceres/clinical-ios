@@ -122,6 +122,32 @@ enum APIService {
         return ChatResponse(text: text, ruleCount: count)
     }
 
+    // MARK: - Save chat session summary (called on Done in Training Chat)
+    static func saveChatSession(userId: String, history: [[String: String]], anthropicKey: String) async {
+        // Fire-and-forget — errors are silently logged
+        do {
+            guard !history.isEmpty else { return }
+            let url = URL(string: "https://clinical-app-ten.vercel.app/api/save-chat-session")!
+            var req = URLRequest(url: url)
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.timeoutInterval = 60
+
+            var body: [String: Any] = [
+                "user_id": userId,       // TODO: Replace with authenticated user_id
+                "conversation_history": history,
+            ]
+            if !anthropicKey.isEmpty { body["anthropic_key"] = anthropicKey }
+
+            req.httpBody = try JSONSerialization.data(withJSONObject: body)
+            let (_, response) = try await URLSession.shared.data(for: req)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            print("[API] save-chat-session: HTTP \(status)")
+        } catch {
+            print("[API] save-chat-session error (silent): \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Extract corrections silently (Save Final learning)
     static func extractCorrections(userId: String, originalNote: [String: String], editedNote: [String: String], anthropicKey: String) async {
         // Fire-and-forget — errors are silently ignored

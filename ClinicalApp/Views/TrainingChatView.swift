@@ -19,7 +19,7 @@ struct TrainingChatView: View {
         VStack(spacing: 0) {
             // Top bar
             HStack {
-                Button { app.home() } label: {
+                Button { endSession() } label: {
                     Text("Done")
                         .font(.system(size: 14))
                         .foregroundColor(Color(hex: 0x888888))
@@ -132,6 +132,21 @@ struct TrainingChatView: View {
                 Spacer()
             }
         }
+    }
+
+    // MARK: - End session (summarize + save)
+    private func endSession() {
+        // Fire-and-forget summary save if there was any exchange
+        if !messages.isEmpty {
+            let history = messages.map { ["role": $0.role, "content": $0.content] }
+            // TODO: Replace with authenticated user_id
+            let uid = app.userId
+            let key = app.anthropicKey
+            Task.detached {
+                await APIService.saveChatSession(userId: uid, history: history, anthropicKey: key)
+            }
+        }
+        app.home()
     }
 
     // MARK: - Send message
