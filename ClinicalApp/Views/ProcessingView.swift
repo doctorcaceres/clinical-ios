@@ -216,18 +216,13 @@ struct ProcessingView: View {
         let url = params.audioURL
         if url.path == "/dev/null" { return }
 
-        // Local file
+        // Local file only. The Storage copy was already deleted server-side
+        // immediately after Deepgram returned the transcript (zero retention).
         do {
             try FileManager.default.removeItem(at: url)
             print("[ProcessingView] Deleted local audio: \(url.lastPathComponent)")
         } catch {
             print("[ProcessingView] Could not delete local audio (non-fatal): \(error.localizedDescription)")
-        }
-
-        // Storage copy — fire-and-forget, never blocks success path
-        let filename = url.lastPathComponent
-        Task.detached {
-            await APIService.deleteAudioFromStorage(filename: filename)
         }
     }
 

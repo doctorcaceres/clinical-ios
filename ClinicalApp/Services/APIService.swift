@@ -19,9 +19,10 @@ enum APIService {
     // MARK: - Storage bucket name
     static let storageBucket = "encounter-audio"
 
-    /// Upload a recorded M4A from local Documents to Supabase Storage.
-    /// Streams from disk (never loads file into RAM). Returns the public URL
-    /// the server can later download from. Bypasses any Vercel body size limit.
+    /// Upload a recorded M4A from local Documents to the PRIVATE Supabase
+    /// Storage bucket. Streams from disk (never loads file into RAM). Returns
+    /// the filename — NOT a URL. The server downloads with the service-role
+    /// key and deletes the file as soon as transcription succeeds.
     static func uploadAudioToStorage(fileURL: URL) async throws -> String {
         let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
         let sizeBytes = (attrs[.size] as? Int) ?? 0
@@ -62,9 +63,8 @@ enum APIService {
                 throw ClinicalError.server("Storage upload failed (HTTP \(status)): \(bodyText.prefix(200))")
             }
 
-            let publicURL = "\(API.supabaseURL)/storage/v1/object/public/\(storageBucket)/\(filename)"
-            print("[API] public URL: \(publicURL)")
-            return publicURL
+            print("[API] uploaded to private bucket — filename: \(filename)")
+            return filename
 
         } catch let nsError as NSError {
             let elapsed = Date().timeIntervalSince(started)
@@ -79,12 +79,14 @@ enum APIService {
         }
     }
 
-    /// Tell the server to fetch the audio from Supabase Storage and transcribe via Deepgram.
-    /// The server side downloads the file (bypassing Vercel's request body limit) and runs Deepgram.
-    static func transcribeFromURL(_ audioURL: String, durationSeconds: Int = 0) async throws -> String {
+    /// Tell the server to fetch the audio from PRIVATE Supabase Storage and transcribe via Deepgram.
+    /// The argument is the filename returned by uploadAudioToStorage — sent in the JSON body as
+    /// `audio_url` for backward compatibility. The server uses the service-role key to download
+    /// and to immediately delete the file once Deepgram returns a transcript.
+    static func transcribeFromURL(_ audioFilename: String, durationSeconds: Int = 0) async throws -> String {
         let durationDesc = durationSeconds > 0 ? "\(durationSeconds)s (\(durationSeconds / 60)m \(durationSeconds % 60)s)" : "unknown"
-        print("[API] ===== TRANSCRIBE FROM URL =====")
-        print("[API] url:      \(audioURL)")
+        print("[API] ===== TRANSCRIBE FROM STORAGE =====")
+        print("[API] filename: \(audioFilename)")
         print("[API] duration: \(durationDesc)")
 
         let endpoint = URL(string: "https://clinical-app-ten.vercel.app/api/transcribe-audio")!
@@ -93,7 +95,7 @@ enum APIService {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 600
 
-        let body: [String: String] = ["audio_url": audioURL]
+        let body: [String: String] = ["audio_url": audioFilename]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let started = Date()
@@ -139,25 +141,9 @@ enum APIService {
         return try await transcribeFromURL(url, durationSeconds: durationSeconds)
     }
 
-    /// Delete an audio file from Supabase Storage. Silent — never throws.
-    /// Called only after a finalized note exists, or after one-shot training/chat
-    /// transcription where the audio is no longer needed.
-    static func deleteAudioFromStorage(filename: String) async {
-        let endpoint = URL(string: "\(API.supabaseURL)/storage/v1/object/\(storageBucket)/\(filename)")!
-        var req = URLRequest(url: endpoint)
-        req.httpMethod = "DELETE"
-        req.setValue(API.supabaseKey, forHTTPHeaderField: "apikey")
-        req.setValue("Bearer \(API.supabaseKey)", forHTTPHeaderField: "Authorization")
-        req.timeoutInterval = 30
-
-        do {
-            let (_, response) = try await URLSession.shared.data(for: req)
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            print("[API] Storage delete: HTTP \(status) for \(filename)")
-        } catch {
-            print("[API] Storage delete error (non-fatal): \(error.localizedDescription)")
-        }
-    }
+    // NOTE: There is no Swift-side Storage delete. The phone has INSERT-only
+    // permission on the encounter-audio bucket. The server (with the service
+    // role key) deletes the file immediately after a successful transcript.
 
     // MARK: - Generate note: send encounter_id + type → server generates note via Claude
     static func generateNote(encounterId: String, encounterType: String, anthropicKey: String, userId: String) async throws {
