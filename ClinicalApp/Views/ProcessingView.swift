@@ -7,9 +7,11 @@ struct ProcessingView: View {
     @State private var stage: Stage = .uploading
     @State private var errorMsg = ""
     @State private var encounterId: String?
+    @State private var uploadedAudioURL: String?
     @State private var transcriptCached: String?
     @State private var attempts: Int = 0
     @State private var hasStarted = false
+    @State private var fileSizeMB: Double = 0
 
     enum Stage { case uploading, transcribing, generating, done, error }
 
@@ -27,8 +29,8 @@ struct ProcessingView: View {
                 .frame(maxWidth: 320)
                 .padding(.horizontal, 16)
 
-            if stage == .uploading {
-                Text("Uploading audio to server...")
+            if stage == .uploading || stage == .transcribing {
+                Text(String(format: "%.2f MB audio", fileSizeMB))
                     .font(.system(size: 12))
                     .foregroundColor(C.textDark)
                     .padding(.top, 8)
@@ -40,6 +42,9 @@ struct ProcessingView: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(C.accent)
                         .padding(.top, 16)
+                    Text(String(format: "%.2f MB", fileSizeMB))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(C.text)
                     Text(params.audioURL.lastPathComponent)
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundColor(C.textDim)
@@ -58,7 +63,6 @@ struct ProcessingView: View {
             // Action buttons
             VStack(spacing: 10) {
                 if stage == .error {
-                    // Retry — primary action when an upload fails
                     Button {
                         Task { await process() }
                     } label: {
@@ -95,8 +99,15 @@ struct ProcessingView: View {
         .background(C.bg.ignoresSafeArea())
         .navigationBarHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .onAppear {
+            // Read file size up front so it's displayable on error
+            if params.audioURL.path != "/dev/null",
+               let attrs = try? FileManager.default.attributesOfItem(atPath: params.audioURL.path),
+               let size = attrs[.size] as? Int {
+                fileSizeMB = Double(size) / 1_048_576
+            }
+        }
         .task {
-            // Only run once on first appearance — retries are user-initiated
             if !hasStarted {
                 hasStarted = true
                 await process()
@@ -120,11 +131,11 @@ struct ProcessingView: View {
 
     private var stageMessage: String {
         switch stage {
-        case .uploading:   return "Uploading audio..."
+        case .uploading:    return "Uploading audio..."
         case .transcribing: return "Transcribing..."
-        case .generating:  return "Writing your note..."
-        case .done:        return "Done. Check Recent Notes."
-        case .error:       return "Upload failed.\n\(errorMsg)"
+        case .generating:   return "Writing your note..."
+        case .done:         return "Done. Check Recent Notes."
+        case .error:        return "Upload failed.\n\(errorMsg)"
         }
     }
 
@@ -133,24 +144,30 @@ struct ProcessingView: View {
         errorMsg = ""
 
         do {
-            // 1. Transcribe — skip if we already have a transcript from a prior attempt
+            // 1. Upload to Supabase Storage — skip if already uploaded on a prior attempt
+            if uploadedAudioURL == nil && params.audioURL.path != "/dev/null" {
+                stage = .uploading
+                uploadedAudioURL = try await APIService.uploadAudioToStorage(fileURL: params.audioURL)
+            }
+
+            // 2. Transcribe — skip if we already have a transcript cached
             let transcript: String
             if let cached = transcriptCached {
-                print("[ProcessingView] Using cached transcript (\(cached.count) chars), skipping transcription")
+                print("[ProcessingView] Using cached transcript (\(cached.count) chars)")
                 transcript = cached
             } else if params.audioURL.path == "/dev/null" {
                 transcript = demoTranscript
                 transcriptCached = transcript
             } else {
-                stage = .uploading
-                transcript = try await APIService.transcribe(
-                    fileURL: params.audioURL,
-                    durationSeconds: params.elapsed
-                )
+                stage = .transcribing
+                guard let audioURL = uploadedAudioURL else {
+                    throw ClinicalError.server("Upload URL missing — cannot transcribe")
+                }
+                transcript = try await APIService.transcribeFromURL(audioURL, durationSeconds: params.elapsed)
                 transcriptCached = transcript
             }
 
-            // 2. Create encounter (only on first successful transcribe; reuse on retry)
+            // 3. Create encounter (only on first successful pass; reuse on retry)
             stage = .generating
             let id: String
             if let existing = encounterId {
@@ -167,7 +184,7 @@ struct ProcessingView: View {
                 try await DB.shared.update(id: id, fields: fields)
             }
 
-            // 3. Generate note
+            // 4. Generate note
             try await APIService.generateNote(
                 encounterId: id,
                 encounterType: params.encounterType,
@@ -175,8 +192,9 @@ struct ProcessingView: View {
                 userId: app.userId
             )
 
-            // 4. Note saved successfully — only NOW is it safe to delete the audio file
-            deleteAudioFile()
+            // 5. Note saved end-to-end. Now safe to delete both the local file
+            //    and the Supabase Storage copy.
+            cleanupAudio()
 
             stage = .done
             app.pendingNoteId = nil
@@ -187,7 +205,6 @@ struct ProcessingView: View {
             errorMsg = "\(nsError.localizedDescription) [\(nsError.domain) \(nsError.code)]"
             print("[ProcessingView] FAILED on attempt \(attempts): \(errorMsg)")
             stage = .error
-            // DO NOT auto-navigate. The user must explicitly choose retry or save-for-later.
         } catch {
             errorMsg = error.localizedDescription
             print("[ProcessingView] FAILED on attempt \(attempts): \(errorMsg)")
@@ -195,15 +212,22 @@ struct ProcessingView: View {
         }
     }
 
-    private func deleteAudioFile() {
+    private func cleanupAudio() {
         let url = params.audioURL
         if url.path == "/dev/null" { return }
+
+        // Local file
         do {
             try FileManager.default.removeItem(at: url)
-            print("[ProcessingView] Deleted audio file (note saved): \(url.lastPathComponent)")
+            print("[ProcessingView] Deleted local audio: \(url.lastPathComponent)")
         } catch {
-            // Non-fatal — the file just stays in Documents until next launch / manual cleanup
-            print("[ProcessingView] Could not delete audio (non-fatal): \(error.localizedDescription)")
+            print("[ProcessingView] Could not delete local audio (non-fatal): \(error.localizedDescription)")
+        }
+
+        // Storage copy — fire-and-forget, never blocks success path
+        let filename = url.lastPathComponent
+        Task.detached {
+            await APIService.deleteAudioFromStorage(filename: filename)
         }
     }
 

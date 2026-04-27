@@ -16,41 +16,95 @@ enum APIService {
         return URLSession(configuration: config)
     }()
 
-    // MARK: - Transcribe: stream raw M4A binary from disk → get transcript
-    static func transcribe(fileURL: URL, durationSeconds: Int = 0) async throws -> String {
-        // Pre-flight: read file size for logging (does NOT load the file into RAM)
+    // MARK: - Storage bucket name
+    static let storageBucket = "encounter-audio"
+
+    /// Upload a recorded M4A from local Documents to Supabase Storage.
+    /// Streams from disk (never loads file into RAM). Returns the public URL
+    /// the server can later download from. Bypasses any Vercel body size limit.
+    static func uploadAudioToStorage(fileURL: URL) async throws -> String {
         let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
         let sizeBytes = (attrs[.size] as? Int) ?? 0
         let sizeMB = Double(sizeBytes) / 1_048_576
-        let durationDesc = durationSeconds > 0 ? "\(durationSeconds)s (\(durationSeconds / 60)m \(durationSeconds % 60)s)" : "unknown"
-        print("[API] ===== UPLOAD START =====")
-        print("[API] file:     \(fileURL.lastPathComponent)")
-        print("[API] size:     \(String(format: "%.2f", sizeMB)) MB (\(sizeBytes) bytes)")
-        print("[API] duration: \(durationDesc)")
+
+        print("[API] ===== STORAGE UPLOAD START =====")
+        print("[API] file: \(fileURL.lastPathComponent)")
+        print("[API] size: \(String(format: "%.2f", sizeMB)) MB (\(sizeBytes) bytes)")
 
         guard sizeBytes > 0 else {
             throw ClinicalError.server("Audio file is empty (0 bytes) — recording may have failed")
         }
 
-        let url = URL(string: "https://clinical-app-ten.vercel.app/api/transcribe-audio")!
-        var req = URLRequest(url: url)
+        let filename = fileURL.lastPathComponent
+        let endpoint = URL(string: "\(API.supabaseURL)/storage/v1/object/\(storageBucket)/\(filename)")!
+
+        var req = URLRequest(url: endpoint)
         req.httpMethod = "POST"
+        req.setValue(API.supabaseKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(API.supabaseKey)", forHTTPHeaderField: "Authorization")
         req.setValue("audio/mp4", forHTTPHeaderField: "Content-Type")
+        req.setValue("3600", forHTTPHeaderField: "Cache-Control")
+        req.setValue("true", forHTTPHeaderField: "x-upsert")  // allow re-upload on retry
         req.setValue(String(sizeBytes), forHTTPHeaderField: "Content-Length")
         req.timeoutInterval = 300
 
         let started = Date()
         do {
-            // Stream the file from disk. NEVER load the whole audio into RAM.
-            // upload(for:fromFile:) uses URLSession's underlying NSURLSessionUploadTask
-            // which reads the file in chunks straight to the network.
             let (data, response) = try await audioSession.upload(for: req, fromFile: fileURL)
             let elapsed = Date().timeIntervalSince(started)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            let bodyText = String(data: data, encoding: .utf8) ?? "<\(data.count) binary bytes>"
-            print("[API] ===== UPLOAD DONE =====")
+            let bodyText = String(data: data, encoding: .utf8) ?? "<binary>"
+            print("[API] ===== STORAGE UPLOAD DONE =====")
             print("[API] HTTP \(status) in \(String(format: "%.1f", elapsed))s")
-            print("[API] response (\(data.count) bytes): \(bodyText.prefix(800))")
+            print("[API] body: \(bodyText.prefix(400))")
+
+            guard status == 200 else {
+                throw ClinicalError.server("Storage upload failed (HTTP \(status)): \(bodyText.prefix(200))")
+            }
+
+            let publicURL = "\(API.supabaseURL)/storage/v1/object/public/\(storageBucket)/\(filename)"
+            print("[API] public URL: \(publicURL)")
+            return publicURL
+
+        } catch let nsError as NSError {
+            let elapsed = Date().timeIntervalSince(started)
+            print("[API] ===== STORAGE UPLOAD FAILED =====")
+            print("[API] after: \(String(format: "%.1f", elapsed))s")
+            print("[API] domain: \(nsError.domain) code: \(nsError.code)")
+            print("[API] desc: \(nsError.localizedDescription)")
+            if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
+                print("[API] underlying: \(underlying.domain)/\(underlying.code) — \(underlying.localizedDescription)")
+            }
+            throw nsError
+        }
+    }
+
+    /// Tell the server to fetch the audio from Supabase Storage and transcribe via Deepgram.
+    /// The server side downloads the file (bypassing Vercel's request body limit) and runs Deepgram.
+    static func transcribeFromURL(_ audioURL: String, durationSeconds: Int = 0) async throws -> String {
+        let durationDesc = durationSeconds > 0 ? "\(durationSeconds)s (\(durationSeconds / 60)m \(durationSeconds % 60)s)" : "unknown"
+        print("[API] ===== TRANSCRIBE FROM URL =====")
+        print("[API] url:      \(audioURL)")
+        print("[API] duration: \(durationDesc)")
+
+        let endpoint = URL(string: "https://clinical-app-ten.vercel.app/api/transcribe-audio")!
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 600
+
+        let body: [String: String] = ["audio_url": audioURL]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let started = Date()
+        do {
+            let (data, response) = try await audioSession.data(for: req)
+            let elapsed = Date().timeIntervalSince(started)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let bodyText = String(data: data, encoding: .utf8) ?? "<binary>"
+            print("[API] ===== TRANSCRIBE DONE =====")
+            print("[API] HTTP \(status) in \(String(format: "%.1f", elapsed))s")
+            print("[API] response: \(bodyText.prefix(800))")
 
             guard status == 200 else {
                 let errMsg = parseError(data) ?? "Transcription failed (HTTP \(status))"
@@ -67,18 +121,41 @@ enum APIService {
 
         } catch let nsError as NSError {
             let elapsed = Date().timeIntervalSince(started)
-            print("[API] ===== UPLOAD FAILED =====")
+            print("[API] ===== TRANSCRIBE FAILED =====")
             print("[API] after: \(String(format: "%.1f", elapsed))s")
-            print("[API] domain: \(nsError.domain)")
-            print("[API] code:   \(nsError.code)")
-            print("[API] desc:   \(nsError.localizedDescription)")
+            print("[API] domain: \(nsError.domain) code: \(nsError.code)")
+            print("[API] desc: \(nsError.localizedDescription)")
             if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
                 print("[API] underlying: \(underlying.domain)/\(underlying.code) — \(underlying.localizedDescription)")
             }
-            for (k, v) in nsError.userInfo where k != NSUnderlyingErrorKey {
-                print("[API] userInfo[\(k)]: \(v)")
-            }
             throw nsError
+        }
+    }
+
+    /// Convenience: upload to Storage + transcribe. Used by training mode and chat mic.
+    /// (ProcessingView splits these so it can cache the URL across retries.)
+    static func transcribe(fileURL: URL, durationSeconds: Int = 0) async throws -> String {
+        let url = try await uploadAudioToStorage(fileURL: fileURL)
+        return try await transcribeFromURL(url, durationSeconds: durationSeconds)
+    }
+
+    /// Delete an audio file from Supabase Storage. Silent — never throws.
+    /// Called only after a finalized note exists, or after one-shot training/chat
+    /// transcription where the audio is no longer needed.
+    static func deleteAudioFromStorage(filename: String) async {
+        let endpoint = URL(string: "\(API.supabaseURL)/storage/v1/object/\(storageBucket)/\(filename)")!
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "DELETE"
+        req.setValue(API.supabaseKey, forHTTPHeaderField: "apikey")
+        req.setValue("Bearer \(API.supabaseKey)", forHTTPHeaderField: "Authorization")
+        req.timeoutInterval = 30
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: req)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            print("[API] Storage delete: HTTP \(status) for \(filename)")
+        } catch {
+            print("[API] Storage delete error (non-fatal): \(error.localizedDescription)")
         }
     }
 

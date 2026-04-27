@@ -94,12 +94,16 @@ final class AudioRecorder: ObservableObject {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         let url = docs.appendingPathComponent("encounter_\(UUID().uuidString).m4a")
 
+        // Speech-optimized: 16 kHz mono AAC at 32 kbps. Roughly 4 MB per hour.
+        // Drops ~75% of file size vs 128 kbps without losing intelligibility for
+        // dictation/conversation, and stays comfortably under any practical
+        // upload limit even for marathon visits.
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 44100,
+            AVSampleRateKey: 16000.0,
             AVNumberOfChannelsKey: 1,
-            AVEncoderAudioQualityKey: AVAudioQuality.max.rawValue,
-            AVEncoderBitRateKey: 128000,
+            AVEncoderBitRateKey: 32000,
+            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
         ]
 
         let r = try AVAudioRecorder(url: url, settings: settings)
