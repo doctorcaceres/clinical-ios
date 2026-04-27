@@ -7,6 +7,9 @@ struct ProcessingView: View {
     @State private var stage: Stage = .uploading
     @State private var errorMsg = ""
     @State private var encounterId: String?
+    @State private var transcriptCached: String?
+    @State private var attempts: Int = 0
+    @State private var hasStarted = false
 
     enum Stage { case uploading, transcribing, generating, done, error }
 
@@ -15,22 +18,14 @@ struct ProcessingView: View {
             Spacer()
             ClinicalTitle().padding(.bottom, 40)
 
-            Group {
-                if stage == .done {
-                    Circle().fill(C.accent).frame(width: 12, height: 12)
-                } else if stage == .error {
-                    Circle().fill(C.error).frame(width: 12, height: 12)
-                } else {
-                    ProgressView().tint(C.accent).scaleEffect(0.8)
-                }
-            }
-            .padding(.bottom, 16)
+            statusIcon.padding(.bottom, 16)
 
             Text(stageMessage)
                 .font(.system(size: 16))
                 .foregroundColor(stage == .error ? C.error : C.textSec)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
+                .frame(maxWidth: 320)
+                .padding(.horizontal, 16)
 
             if stage == .uploading {
                 Text("Uploading audio to server...")
@@ -39,93 +34,176 @@ struct ProcessingView: View {
                     .padding(.top, 8)
             }
 
+            if stage == .error {
+                VStack(spacing: 6) {
+                    Text("Recording is saved on this phone.")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(C.accent)
+                        .padding(.top, 16)
+                    Text(params.audioURL.lastPathComponent)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(C.textDim)
+                        .padding(.horizontal, 24)
+                        .multilineTextAlignment(.center)
+                    if attempts > 1 {
+                        Text("Attempts: \(attempts)")
+                            .font(.system(size: 11))
+                            .foregroundColor(C.textMuted)
+                    }
+                }
+            }
+
             Spacer()
 
-            // "Next Patient" — visible immediately (spec requirement)
-            if stage != .done {
-                Button {
-                    if let id = encounterId { app.pendingNoteId = id }
-                    app.home()
-                } label: {
-                    Text("Next Patient")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(C.text)
-                        .frame(maxWidth: 300)
-                        .padding(.vertical, 14)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(C.borderPri, lineWidth: 2))
+            // Action buttons
+            VStack(spacing: 10) {
+                if stage == .error {
+                    // Retry — primary action when an upload fails
+                    Button {
+                        Task { await process() }
+                    } label: {
+                        Text("Tap to retry")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(C.bg)
+                            .frame(maxWidth: 300)
+                            .padding(.vertical, 14)
+                            .background(C.accent)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(PressStyle())
                 }
-                .buttonStyle(PressStyle())
-                .padding(.bottom, 40)
+
+                if stage != .done {
+                    Button {
+                        if let id = encounterId { app.pendingNoteId = id }
+                        app.home()
+                    } label: {
+                        Text(stage == .error ? "Save for later" : "Next Patient")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(C.text)
+                            .frame(maxWidth: 300)
+                            .padding(.vertical, 14)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(C.borderPri, lineWidth: 2))
+                    }
+                    .buttonStyle(PressStyle())
+                }
             }
+            .padding(.bottom, 40)
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(C.bg.ignoresSafeArea())
         .navigationBarHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .task { await process() }
+        .task {
+            // Only run once on first appearance — retries are user-initiated
+            if !hasStarted {
+                hasStarted = true
+                await process()
+            }
+        }
+    }
+
+    private var statusIcon: some View {
+        Group {
+            if stage == .done {
+                Circle().fill(C.accent).frame(width: 12, height: 12)
+            } else if stage == .error {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(C.error)
+            } else {
+                ProgressView().tint(C.accent).scaleEffect(0.8)
+            }
+        }
     }
 
     private var stageMessage: String {
         switch stage {
-        case .uploading: return "Uploading audio..."
+        case .uploading:   return "Uploading audio..."
         case .transcribing: return "Transcribing..."
-        case .generating: return "Writing your note..."
-        case .done: return "Done! Check Recent Notes."
-        case .error: return "Error: \(errorMsg)"
+        case .generating:  return "Writing your note..."
+        case .done:        return "Done. Check Recent Notes."
+        case .error:       return "Upload failed.\n\(errorMsg)"
         }
     }
 
     private func process() async {
+        attempts += 1
+        errorMsg = ""
+
         do {
-            // 1. Transcribe
-            stage = .uploading
+            // 1. Transcribe — skip if we already have a transcript from a prior attempt
             let transcript: String
-            if params.audioURL.path == "/dev/null" {
+            if let cached = transcriptCached {
+                print("[ProcessingView] Using cached transcript (\(cached.count) chars), skipping transcription")
+                transcript = cached
+            } else if params.audioURL.path == "/dev/null" {
                 transcript = demoTranscript
+                transcriptCached = transcript
             } else {
-                transcript = try await APIService.transcribe(fileURL: params.audioURL)
+                stage = .uploading
+                transcript = try await APIService.transcribe(
+                    fileURL: params.audioURL,
+                    durationSeconds: params.elapsed
+                )
+                transcriptCached = transcript
             }
 
-            // 2. Create encounter in Supabase
+            // 2. Create encounter (only on first successful transcribe; reuse on retry)
             stage = .generating
-            let type = params.encounterType  // already "new" or "followup"
-            let id = try await DB.shared.createEncounter(type: type)
-            encounterId = id
+            let id: String
+            if let existing = encounterId {
+                id = existing
+            } else {
+                id = try await DB.shared.createEncounter(type: params.encounterType)
+                encounterId = id
+                var fields: [String: Any] = [
+                    "transcript": transcript,
+                    "elapsed": params.elapsed,
+                    "status": "processing",
+                ]
+                if let inst = params.instructions { fields["doctor_instructions"] = inst }
+                try await DB.shared.update(id: id, fields: fields)
+            }
 
-            var fields: [String: Any] = [
-                "transcript": transcript,
-                "elapsed": params.elapsed,
-                "status": "processing",
-            ]
-            if let inst = params.instructions { fields["doctor_instructions"] = inst }
-            try await DB.shared.update(id: id, fields: fields)
-
-            // 3. Generate note (separate call — doesn't risk transcription timeout)
-            // TODO: Replace with authenticated user_id
-            try? await APIService.generateNote(
+            // 3. Generate note
+            try await APIService.generateNote(
                 encounterId: id,
-                encounterType: type,
+                encounterType: params.encounterType,
                 anthropicKey: app.anthropicKey,
                 userId: app.userId
             )
 
+            // 4. Note saved successfully — only NOW is it safe to delete the audio file
+            deleteAudioFile()
+
             stage = .done
             app.pendingNoteId = nil
-
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             app.home()
 
         } catch let nsError as NSError {
-            errorMsg = "\(nsError.localizedDescription)\nDomain: \(nsError.domain) Code: \(nsError.code)"
+            errorMsg = "\(nsError.localizedDescription) [\(nsError.domain) \(nsError.code)]"
+            print("[ProcessingView] FAILED on attempt \(attempts): \(errorMsg)")
             stage = .error
-            try? await Task.sleep(nanoseconds: 6_000_000_000)
-            app.home()
+            // DO NOT auto-navigate. The user must explicitly choose retry or save-for-later.
         } catch {
             errorMsg = error.localizedDescription
+            print("[ProcessingView] FAILED on attempt \(attempts): \(errorMsg)")
             stage = .error
-            try? await Task.sleep(nanoseconds: 6_000_000_000)
-            app.home()
+        }
+    }
+
+    private func deleteAudioFile() {
+        let url = params.audioURL
+        if url.path == "/dev/null" { return }
+        do {
+            try FileManager.default.removeItem(at: url)
+            print("[ProcessingView] Deleted audio file (note saved): \(url.lastPathComponent)")
+        } catch {
+            // Non-fatal — the file just stays in Documents until next launch / manual cleanup
+            print("[ProcessingView] Could not delete audio (non-fatal): \(error.localizedDescription)")
         }
     }
 

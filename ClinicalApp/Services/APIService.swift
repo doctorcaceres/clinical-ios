@@ -3,34 +3,83 @@ import Foundation
 /// All server communication. Uses raw binary upload for audio (avoids base64 overhead and Vercel body limits).
 enum APIService {
 
-    // MARK: - Transcribe: upload raw M4A binary → get transcript
-    static func transcribe(fileURL: URL) async throws -> String {
-        let audioData = try Data(contentsOf: fileURL)
-        let sizeMB = Double(audioData.count) / 1_048_576
-        print("[API] Uploading audio: \(String(format: "%.1f", sizeMB)) MB")
+    /// Dedicated URLSession for audio uploads. Both per-request and per-resource
+    /// timeouts are set to 300s so a long encounter can finish uploading even on a
+    /// slow cellular connection. waitsForConnectivity prevents instant failure if
+    /// the radio briefly drops between recording and upload.
+    private static let audioSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 300
+        config.timeoutIntervalForResource = 300
+        config.waitsForConnectivity = true
+        config.allowsCellularAccess = true
+        return URLSession(configuration: config)
+    }()
 
-        // Raw binary upload — Content-Type tells the server and Deepgram the format
+    // MARK: - Transcribe: stream raw M4A binary from disk → get transcript
+    static func transcribe(fileURL: URL, durationSeconds: Int = 0) async throws -> String {
+        // Pre-flight: read file size for logging (does NOT load the file into RAM)
+        let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let sizeBytes = (attrs[.size] as? Int) ?? 0
+        let sizeMB = Double(sizeBytes) / 1_048_576
+        let durationDesc = durationSeconds > 0 ? "\(durationSeconds)s (\(durationSeconds / 60)m \(durationSeconds % 60)s)" : "unknown"
+        print("[API] ===== UPLOAD START =====")
+        print("[API] file:     \(fileURL.lastPathComponent)")
+        print("[API] size:     \(String(format: "%.2f", sizeMB)) MB (\(sizeBytes) bytes)")
+        print("[API] duration: \(durationDesc)")
+
+        guard sizeBytes > 0 else {
+            throw ClinicalError.server("Audio file is empty (0 bytes) — recording may have failed")
+        }
+
         let url = URL(string: "https://clinical-app-ten.vercel.app/api/transcribe-audio")!
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("audio/mp4", forHTTPHeaderField: "Content-Type")
+        req.setValue(String(sizeBytes), forHTTPHeaderField: "Content-Length")
         req.timeoutInterval = 300
 
-        let (data, response) = try await URLSession.shared.upload(for: req, from: audioData)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let started = Date()
+        do {
+            // Stream the file from disk. NEVER load the whole audio into RAM.
+            // upload(for:fromFile:) uses URLSession's underlying NSURLSessionUploadTask
+            // which reads the file in chunks straight to the network.
+            let (data, response) = try await audioSession.upload(for: req, fromFile: fileURL)
+            let elapsed = Date().timeIntervalSince(started)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let bodyText = String(data: data, encoding: .utf8) ?? "<\(data.count) binary bytes>"
+            print("[API] ===== UPLOAD DONE =====")
+            print("[API] HTTP \(status) in \(String(format: "%.1f", elapsed))s")
+            print("[API] response (\(data.count) bytes): \(bodyText.prefix(800))")
 
-        guard status == 200 else {
-            let errMsg = parseError(data) ?? "Transcription failed (HTTP \(status))"
-            throw ClinicalError.server(errMsg)
+            guard status == 200 else {
+                let errMsg = parseError(data) ?? "Transcription failed (HTTP \(status))"
+                throw ClinicalError.server(errMsg)
+            }
+
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let transcript = json["transcript"] as? String, !transcript.isEmpty else {
+                throw ClinicalError.server("No transcript returned — audio may be too short or silent")
+            }
+
+            print("[API] transcript: \(transcript.count) chars")
+            return transcript
+
+        } catch let nsError as NSError {
+            let elapsed = Date().timeIntervalSince(started)
+            print("[API] ===== UPLOAD FAILED =====")
+            print("[API] after: \(String(format: "%.1f", elapsed))s")
+            print("[API] domain: \(nsError.domain)")
+            print("[API] code:   \(nsError.code)")
+            print("[API] desc:   \(nsError.localizedDescription)")
+            if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
+                print("[API] underlying: \(underlying.domain)/\(underlying.code) — \(underlying.localizedDescription)")
+            }
+            for (k, v) in nsError.userInfo where k != NSUnderlyingErrorKey {
+                print("[API] userInfo[\(k)]: \(v)")
+            }
+            throw nsError
         }
-
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let transcript = json["transcript"] as? String, !transcript.isEmpty else {
-            throw ClinicalError.server("No transcript returned — audio may be too short")
-        }
-
-        print("[API] Transcript: \(transcript.count) chars")
-        return transcript
     }
 
     // MARK: - Generate note: send encounter_id + type → server generates note via Claude
