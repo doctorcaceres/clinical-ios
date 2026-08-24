@@ -4,6 +4,7 @@ struct RecordingView: View {
     @EnvironmentObject var app: AppState
     // SINGLETON — lives at app level, survives view recycles and backgrounding
     @ObservedObject private var rec = AudioRecorder.shared
+    @State private var stopFailed = false
     let type: String
 
     var body: some View {
@@ -98,7 +99,40 @@ struct RecordingView: View {
                 .background(C.errorBg)
                 .cornerRadius(12)
                 .padding(.bottom, 24)
+            } else if rec.interruptionPause {
+                // Call/Siri took the mic — auto-resumes when it ends
+                VStack(spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "phone.fill")
+                            .foregroundColor(C.warning)
+                            .font(.system(size: 13))
+                        Text("Paused — call in progress")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(C.warning)
+                    }
+                    Text("Recording will resume automatically when the call ends. Nothing recorded so far is lost.")
+                        .font(.system(size: 12))
+                        .foregroundColor(C.textMuted)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                }
+                .padding(.vertical, 16)
+                .frame(maxWidth: .infinity)
+                .background(C.warningBg)
+                .cornerRadius(12)
+                .padding(.bottom, 24)
             } else if rec.isRecording && !rec.isPaused {
+                if rec.resumedBanner {
+                    Text("Recording resumed")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(C.accent)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 16)
+                        .background(C.accentBg)
+                        .cornerRadius(10)
+                        .padding(.bottom, 10)
+                        .transition(.opacity)
+                }
                 HStack(spacing: 6) {
                     Circle().fill(C.error).frame(width: 8, height: 8)
                     Text("Recording...")
@@ -152,42 +186,59 @@ struct RecordingView: View {
                     Button { handleStop() } label: {
                         ZStack {
                             Circle().fill(C.error).frame(width: 80, height: 80)
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.white.opacity(0.9))
-                                .frame(width: 22, height: 22)
+                            if rec.isFinalizing {
+                                ProgressView().tint(.white)
+                            } else {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.white.opacity(0.9))
+                                    .frame(width: 22, height: 22)
+                            }
                         }
                     }
                     .buttonStyle(PressStyle())
+                    .disabled(rec.isFinalizing)
                 }
 
                 Text(statusHint)
                     .font(.system(size: 13))
-                    .foregroundColor(rec.recordingStopped ? C.error : C.textDim)
+                    .foregroundColor(rec.recordingStopped || stopFailed ? C.error : C.textDim)
                     .padding(.top, 12)
             }
         }
     }
 
     private var statusHint: String {
+        if stopFailed { return "Could not save the recording — audio segments are kept on this phone" }
+        if rec.isFinalizing { return "Finalizing recording..." }
         if rec.recordingStopped { return "Tap stop to save what was captured" }
+        if rec.interruptionPause { return "Tap play to retry, or stop to save what you have" }
         if rec.isPaused { return "Resume or stop recording" }
         return type == "training" ? "Listening..." : "Recording encounter"
     }
 
     private func handleStop() {
-        guard let url = rec.stop() else { return }
-        if type == "training" {
-            app.push(.trainingProcessing(TrainingParams(
-                audioURL: url,
-                elapsed: rec.elapsed
-            )))
-        } else {
-            app.push(.processing(ProcessParams(
-                encounterType: type,
-                audioURL: url,
-                elapsed: rec.elapsed,
-                instructions: nil
-            )))
+        guard !rec.isFinalizing else { return }
+        stopFailed = false
+        let elapsed = rec.elapsed
+        Task {
+            guard let url = await rec.stop() else {
+                // Merge failed or nothing captured — segments stay on disk
+                stopFailed = true
+                return
+            }
+            if type == "training" {
+                app.push(.trainingProcessing(TrainingParams(
+                    audioURL: url,
+                    elapsed: elapsed
+                )))
+            } else {
+                app.push(.processing(ProcessParams(
+                    encounterType: type,
+                    audioURL: url,
+                    elapsed: elapsed,
+                    instructions: nil
+                )))
+            }
         }
     }
 

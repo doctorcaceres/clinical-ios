@@ -197,10 +197,14 @@ struct TrainingChatView: View {
     // MARK: - Voice dictation
     private func toggleMic() {
         if rec.isRecording {
-            // Stop and transcribe
-            guard let url = rec.stop() else { return }
+            // Stop (merges segments if a call interrupted the dictation), then transcribe
             isTranscribing = true
             Task {
+                guard let url = await rec.stop() else {
+                    messages.append(ChatMsg(role: "assistant", content: "Voice capture failed — nothing was recorded."))
+                    isTranscribing = false
+                    return
+                }
                 do {
                     let raw = try await APIService.transcribe(fileURL: url)
                     let cleaned = stripSpeakerLabels(raw)
@@ -236,8 +240,8 @@ struct TrainingChatView: View {
 
     // MARK: - End session (summarize + save)
     private func endSession() {
-        // If recording is active, stop it without transcribing — user is bailing
-        if rec.isRecording { _ = rec.stop() }
+        // If dictation is active, discard it — user is bailing (no merge needed)
+        if rec.isRecording { rec.reset() }
 
         // Fire-and-forget summary save if there was any exchange
         if !messages.isEmpty {
