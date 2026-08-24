@@ -20,9 +20,12 @@ enum APIService {
     static let storageBucket = "encounter-audio"
 
     /// Upload a recorded M4A from local Documents to the PRIVATE Supabase
-    /// Storage bucket. Streams from disk (never loads file into RAM). Returns
-    /// the filename — NOT a URL. The server downloads with the service-role
-    /// key and deletes the file as soon as transcription succeeds.
+    /// Storage bucket via a server-issued signed URL. Two steps:
+    ///   1. POST /api/upload-url with the filename → server (holding the
+    ///      service-role key) returns a short-lived signed upload URL.
+    ///   2. PUT the audio to that signed URL, streaming from disk.
+    /// No Supabase key is ever used for uploads, the bucket stays private,
+    /// and no anon RLS policies exist. Returns the filename.
     static func uploadAudioToStorage(fileURL: URL) async throws -> String {
         let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
         let sizeBytes = (attrs[.size] as? Int) ?? 0
@@ -37,14 +40,31 @@ enum APIService {
         }
 
         let filename = fileURL.lastPathComponent
-        let endpoint = URL(string: "\(API.supabaseURL)/storage/v1/object/\(storageBucket)/\(filename)")!
 
-        var req = URLRequest(url: endpoint)
-        req.httpMethod = "POST"
-        req.setValue(API.supabaseKey, forHTTPHeaderField: "apikey")
-        req.setValue("Bearer \(API.supabaseKey)", forHTTPHeaderField: "Authorization")
+        // Step 1: ask the server for a signed upload URL
+        let signEndpoint = URL(string: "https://clinical-app-ten.vercel.app/api/upload-url")!
+        var signReq = URLRequest(url: signEndpoint)
+        signReq.httpMethod = "POST"
+        signReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        signReq.timeoutInterval = 30
+        signReq.httpBody = try JSONSerialization.data(withJSONObject: ["filename": filename])
+
+        let (signData, signResp) = try await URLSession.shared.data(for: signReq)
+        let signStatus = (signResp as? HTTPURLResponse)?.statusCode ?? 0
+        guard signStatus == 200,
+              let signJSON = try? JSONSerialization.jsonObject(with: signData) as? [String: Any],
+              let signedUrlString = signJSON["signedUrl"] as? String,
+              let signedUrl = URL(string: signedUrlString) else {
+            let errMsg = parseError(signData) ?? "Could not get signed upload URL (HTTP \(signStatus))"
+            print("[API] upload-url failed: \(errMsg)")
+            throw ClinicalError.server(errMsg)
+        }
+        print("[API] signed URL issued")
+
+        // Step 2: PUT the audio to the signed URL, streaming from disk
+        var req = URLRequest(url: signedUrl)
+        req.httpMethod = "PUT"
         req.setValue("audio/mp4", forHTTPHeaderField: "Content-Type")
-        req.setValue("3600", forHTTPHeaderField: "Cache-Control")
         req.setValue("true", forHTTPHeaderField: "x-upsert")  // allow re-upload on retry
         req.setValue(String(sizeBytes), forHTTPHeaderField: "Content-Length")
         req.timeoutInterval = 300
@@ -59,7 +79,7 @@ enum APIService {
             print("[API] HTTP \(status) in \(String(format: "%.1f", elapsed))s")
             print("[API] body: \(bodyText.prefix(400))")
 
-            guard status == 200 else {
+            guard (200...299).contains(status) else {
                 throw ClinicalError.server("Storage upload failed (HTTP \(status)): \(bodyText.prefix(200))")
             }
 
