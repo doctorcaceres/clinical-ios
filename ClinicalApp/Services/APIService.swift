@@ -191,6 +191,55 @@ enum APIService {
         }
     }
 
+    // MARK: - Generate note, STREAMING — deltas arrive as Claude writes.
+    // Server saves the finished note to Supabase before sending done:true,
+    // so the DB row is authoritative; the streamed text is for live display.
+    static func generateNoteStream(
+        encounterId: String,
+        encounterType: String,
+        userId: String,
+        onDelta: @escaping @MainActor (String) -> Void
+    ) async throws {
+        let url = URL(string: "https://clinical-app-ten.vercel.app/api/generate-note-stream")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 600
+
+        let body: [String: String] = [
+            "encounter_id": encounterId,
+            "encounter_type": encounterType,
+            "user_id": userId,    // TODO: Replace with authenticated user_id
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (bytes, response) = try await audioSession.bytes(for: req)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            throw ClinicalError.server("Note stream failed (HTTP \(status))")
+        }
+
+        var completedOK = false
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data: ") else { continue }
+            guard let data = String(line.dropFirst(6)).data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+            if let t = obj["t"] as? String, !t.isEmpty {
+                await onDelta(t)
+            }
+            if obj["done"] as? Bool == true {
+                if obj["ok"] as? Bool == true {
+                    completedOK = true
+                } else {
+                    throw ClinicalError.server((obj["error"] as? String) ?? "Note generation failed mid-stream")
+                }
+            }
+        }
+        guard completedOK else {
+            throw ClinicalError.server("Note stream ended unexpectedly")
+        }
+    }
+
     // MARK: - Extract style rules from training dictation → returns rule count
     static func extractStyleRules(transcript: String, userId: String) async throws -> Int {
         let url = URL(string: "https://clinical-app-ten.vercel.app/api/extract-style-rules")!

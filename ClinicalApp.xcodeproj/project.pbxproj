@@ -21,6 +21,7 @@
 		B915938F71A2D6BE0745FCEE /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 768BB03C838668C73B74CEC6 /* APIService.swift */; };
 		C7FD9EBB5E4ED16FAED96FC2 /* RecordButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = C923D34EBD45C8038984C7B5 /* RecordButton.swift */; };
 		CB2BEEE506F9920A67036B7C /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02C9B8834445719EDB7BF26C /* AudioRecorder.swift */; };
+		CDFC5551715859E7AAE2D928 /* InstructionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 332D60EE2893C9D0C64C096A /* InstructionsView.swift */; };
 		D3913DCC98A3646908FF6ADB /* RecentNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29EC4FEF82DD4E4E11FA9C94 /* RecentNotesView.swift */; };
 		D4DD52964127A274974B5385 /* TrainingChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AD9D456F8AE11390AE7C808 /* TrainingChatView.swift */; };
 		F768F323E16608B534F7C611 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6513D92BFEDC5A5063A346B /* Constants.swift */; };
@@ -33,6 +34,7 @@
 		11208606AD8D6E31945705E2 /* NoteReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteReviewView.swift; sourceTree = "<group>"; };
 		172070A239447A68D4EB60C9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		29EC4FEF82DD4E4E11FA9C94 /* RecentNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentNotesView.swift; sourceTree = "<group>"; };
+		332D60EE2893C9D0C64C096A /* InstructionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstructionsView.swift; sourceTree = "<group>"; };
 		36BDD08CD5264218D2E544E0 /* ClinicalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalApp.swift; sourceTree = "<group>"; };
 		383A527B6F309B83FD7FE189 /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
 		3A2C780825C950FB25D73C58 /* TrainingProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingProcessingView.swift; sourceTree = "<group>"; };
@@ -105,6 +107,7 @@
 			isa = PBXGroup;
 			children = (
 				82EB3C3B90BA83D20F228822 /* HomeView.swift */,
+				332D60EE2893C9D0C64C096A /* InstructionsView.swift */,
 				11208606AD8D6E31945705E2 /* NoteReviewView.swift */,
 				623D2E7241DCCD104F6D162B /* ProcessingView.swift */,
 				29EC4FEF82DD4E4E11FA9C94 /* RecentNotesView.swift */,
@@ -210,6 +213,7 @@
 				82F390DF9F55C2F942B9475A /* Encounter.swift in Sources */,
 				7456A287D134CD2234250564 /* Extensions.swift in Sources */,
 				6EB64583272875DADE3E39F3 /* HomeView.swift in Sources */,
+				CDFC5551715859E7AAE2D928 /* InstructionsView.swift in Sources */,
 				A3B12E32E647DF113B169FFF /* NoteReviewView.swift in Sources */,
 				4B1C8CEA3CD20A1656DC5165 /* NoteSection.swift in Sources */,
 				775BD34A0E31AAF894E0700D /* ProcessingView.swift in Sources */,

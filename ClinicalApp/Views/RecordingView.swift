@@ -232,7 +232,11 @@ struct RecordingView: View {
                     elapsed: elapsed
                 )))
             } else {
-                app.push(.processing(ProcessParams(
+                // Start upload + transcription IMMEDIATELY in the background —
+                // it runs while the doctor is on the Instructions screen, so
+                // dictating instructions hides the transcription wait entirely.
+                app.startBackgroundTranscription(audioURL: url, durationSeconds: elapsed)
+                app.push(.instructions(ProcessParams(
                     encounterType: type,
                     audioURL: url,
                     elapsed: elapsed,

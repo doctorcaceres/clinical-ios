@@ -224,20 +224,6 @@ struct TrainingChatView: View {
         }
     }
 
-    /// Deepgram returns "Speaker 0: ..." labels — strip them for single-speaker dictation.
-    private func stripSpeakerLabels(_ s: String) -> String {
-        let pattern = #"^Speaker \d+:\s*"#
-        return s.components(separatedBy: "\n")
-            .map { line -> String in
-                if let range = line.range(of: pattern, options: .regularExpression) {
-                    return String(line[range.upperBound...])
-                }
-                return line
-            }
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     // MARK: - End session (summarize + save)
     private func endSession() {
         // If dictation is active, discard it — user is bailing (no merge needed)

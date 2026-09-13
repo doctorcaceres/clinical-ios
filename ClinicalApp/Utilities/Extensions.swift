@@ -13,6 +13,21 @@ extension Color {
     }
 }
 
+// MARK: - Transcript cleanup
+/// Deepgram returns "Speaker 0: ..." labels — strip them for single-speaker dictation.
+func stripSpeakerLabels(_ s: String) -> String {
+    let pattern = #"^Speaker \d+:\s*"#
+    return s.components(separatedBy: "\n")
+        .map { line -> String in
+            if let range = line.range(of: pattern, options: .regularExpression) {
+                return String(line[range.upperBound...])
+            }
+            return line
+        }
+        .joined(separator: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
 // MARK: - Elapsed time formatting
 func formatElapsed(_ seconds: Int) -> String {
     let h = seconds / 3600
