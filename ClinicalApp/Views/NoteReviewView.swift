@@ -141,13 +141,11 @@ struct NoteReviewView: View {
                     let editedNote = note
                     // TODO: Replace with authenticated user_id
                     let uid = app.userId
-                    let key = app.anthropicKey
                     Task.detached {
                         await APIService.extractCorrections(
                             userId: uid,
                             originalNote: originalNote,
-                            editedNote: editedNote,
-                            anthropicKey: key
+                            editedNote: editedNote
                         )
                     }
                 }

@@ -166,20 +166,19 @@ enum APIService {
     // role key) deletes the file immediately after a successful transcript.
 
     // MARK: - Generate note: send encounter_id + type → server generates note via Claude
-    static func generateNote(encounterId: String, encounterType: String, anthropicKey: String, userId: String) async throws {
+    // All API keys live server-side (Vercel env vars). The app never sends keys.
+    static func generateNote(encounterId: String, encounterType: String, userId: String) async throws {
         let url = URL(string: "https://clinical-app-ten.vercel.app/api/generate-note")!
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 300
 
-        var body: [String: String] = [
+        let body: [String: String] = [
             "encounter_id": encounterId,
             "encounter_type": encounterType,
             "user_id": userId,    // TODO: Replace with authenticated user_id
         ]
-        // Send anthropic key if we have one (server also checks env var as fallback)
-        if !anthropicKey.isEmpty { body["anthropic_key"] = anthropicKey }
 
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
@@ -193,18 +192,17 @@ enum APIService {
     }
 
     // MARK: - Extract style rules from training dictation → returns rule count
-    static func extractStyleRules(transcript: String, userId: String, anthropicKey: String) async throws -> Int {
+    static func extractStyleRules(transcript: String, userId: String) async throws -> Int {
         let url = URL(string: "https://clinical-app-ten.vercel.app/api/extract-style-rules")!
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 120
 
-        var body: [String: String] = [
+        let body: [String: String] = [
             "transcript": transcript,
             "user_id": userId,    // TODO: Replace with authenticated user_id
         ]
-        if !anthropicKey.isEmpty { body["anthropic_key"] = anthropicKey }
 
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
@@ -225,19 +223,18 @@ enum APIService {
         let ruleCount: Int
     }
 
-    static func trainingChat(userId: String, message: String, history: [[String: String]], anthropicKey: String) async throws -> ChatResponse {
+    static func trainingChat(userId: String, message: String, history: [[String: String]]) async throws -> ChatResponse {
         let url = URL(string: "https://clinical-app-ten.vercel.app/api/training-chat")!
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 60
 
-        var body: [String: Any] = [
+        let body: [String: Any] = [
             "user_id": userId,       // TODO: Replace with authenticated user_id
             "message": message,
             "conversation_history": history,
         ]
-        if !anthropicKey.isEmpty { body["anthropic_key"] = anthropicKey }
 
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
@@ -255,7 +252,7 @@ enum APIService {
     }
 
     // MARK: - Save chat session summary (called on Done in Training Chat)
-    static func saveChatSession(userId: String, history: [[String: String]], anthropicKey: String) async {
+    static func saveChatSession(userId: String, history: [[String: String]]) async {
         // Fire-and-forget — errors are silently logged
         do {
             guard !history.isEmpty else { return }
@@ -265,11 +262,10 @@ enum APIService {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.timeoutInterval = 60
 
-            var body: [String: Any] = [
+            let body: [String: Any] = [
                 "user_id": userId,       // TODO: Replace with authenticated user_id
                 "conversation_history": history,
             ]
-            if !anthropicKey.isEmpty { body["anthropic_key"] = anthropicKey }
 
             req.httpBody = try JSONSerialization.data(withJSONObject: body)
             let (_, response) = try await URLSession.shared.data(for: req)
@@ -281,7 +277,7 @@ enum APIService {
     }
 
     // MARK: - Extract corrections silently (Save Final learning)
-    static func extractCorrections(userId: String, originalNote: [String: String], editedNote: [String: String], anthropicKey: String) async {
+    static func extractCorrections(userId: String, originalNote: [String: String], editedNote: [String: String]) async {
         // Fire-and-forget — errors are silently ignored
         do {
             let url = URL(string: "https://clinical-app-ten.vercel.app/api/extract-corrections")!
@@ -290,12 +286,11 @@ enum APIService {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.timeoutInterval = 120
 
-            var body: [String: Any] = [
+            let body: [String: Any] = [
                 "user_id": userId,           // TODO: Replace with authenticated user_id
                 "original_note": originalNote,
                 "edited_note": editedNote,
             ]
-            if !anthropicKey.isEmpty { body["anthropic_key"] = anthropicKey }
 
             req.httpBody = try JSONSerialization.data(withJSONObject: body)
             let (_, response) = try await URLSession.shared.data(for: req)

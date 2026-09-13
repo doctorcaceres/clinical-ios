@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		07C26603E7C2129B713B19E1 /* TrainingProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A2C780825C950FB25D73C58 /* TrainingProcessingView.swift */; };
 		193C625BF6903AABFAF7E8CB /* ClinicalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36BDD08CD5264218D2E544E0 /* ClinicalApp.swift */; };
-		3534209A488094416F37E1BA /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88F59F4B71E2426DA3C06C79 /* SetupView.swift */; };
 		4B1C8CEA3CD20A1656DC5165 /* NoteSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6E06904E49C6594782FCCC9 /* NoteSection.swift */; };
 		52D12EAE798796617654B73D /* SectionEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9B2A66166D97C63052843FF /* SectionEditor.swift */; };
 		6AEACAF09359A68FC92BA02C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 495FFF5AB22798627E081B68 /* Assets.xcassets */; };
@@ -42,7 +41,6 @@
 		623D2E7241DCCD104F6D162B /* ProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingView.swift; sourceTree = "<group>"; };
 		768BB03C838668C73B74CEC6 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		82EB3C3B90BA83D20F228822 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		88F59F4B71E2426DA3C06C79 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		BEFEC0DB38F6C6E9C58CC00D /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		C89ED206CAC819B8135EB60D /* ClinicalApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ClinicalApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C923D34EBD45C8038984C7B5 /* RecordButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordButton.swift; sourceTree = "<group>"; };
@@ -111,7 +109,6 @@
 				623D2E7241DCCD104F6D162B /* ProcessingView.swift */,
 				29EC4FEF82DD4E4E11FA9C94 /* RecentNotesView.swift */,
 				D30B1A4B1BFBF400716E7B95 /* RecordingView.swift */,
-				88F59F4B71E2426DA3C06C79 /* SetupView.swift */,
 				5AD9D456F8AE11390AE7C808 /* TrainingChatView.swift */,
 				3A2C780825C950FB25D73C58 /* TrainingProcessingView.swift */,
 				01BB8344FF6FB34F93AD4E90 /* Components */,
@@ -220,7 +217,6 @@
 				C7FD9EBB5E4ED16FAED96FC2 /* RecordButton.swift in Sources */,
 				FA55CE28C2D5C284F579B52B /* RecordingView.swift in Sources */,
 				52D12EAE798796617654B73D /* SectionEditor.swift in Sources */,
-				3534209A488094416F37E1BA /* SetupView.swift in Sources */,
 				B4D9AB709666F46C56676740 /* SupabaseService.swift in Sources */,
 				D4DD52964127A274974B5385 /* TrainingChatView.swift in Sources */,
 				07C26603E7C2129B713B19E1 /* TrainingProcessingView.swift in Sources */,

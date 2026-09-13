@@ -86,8 +86,7 @@ struct TrainingProcessingView: View {
             // TODO: Replace with authenticated user_id
             let count = try await APIService.extractStyleRules(
                 transcript: transcript,
-                userId: app.userId,
-                anthropicKey: app.anthropicKey
+                userId: app.userId
             )
             ruleCount = count
 

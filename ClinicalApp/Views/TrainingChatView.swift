@@ -248,9 +248,8 @@ struct TrainingChatView: View {
             let history = messages.map { ["role": $0.role, "content": $0.content] }
             // TODO: Replace with authenticated user_id
             let uid = app.userId
-            let key = app.anthropicKey
             Task.detached {
-                await APIService.saveChatSession(userId: uid, history: history, anthropicKey: key)
+                await APIService.saveChatSession(userId: uid, history: history)
             }
         }
         app.home()
@@ -274,8 +273,7 @@ struct TrainingChatView: View {
                 let response = try await APIService.trainingChat(
                     userId: app.userId,
                     message: text,
-                    history: history,
-                    anthropicKey: app.anthropicKey
+                    history: history
                 )
 
                 messages.append(ChatMsg(role: "assistant", content: response.text))

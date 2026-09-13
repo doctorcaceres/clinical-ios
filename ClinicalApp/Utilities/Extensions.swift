@@ -53,6 +53,10 @@ enum Keychain {
         guard SecItemCopyMatching(q as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
+    static func delete(_ key: String) {
+        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrAccount as String: key]
+        SecItemDelete(q as CFDictionary)
+    }
 }
 
 // MARK: - Reusable UI

@@ -188,7 +188,6 @@ struct ProcessingView: View {
             try await APIService.generateNote(
                 encounterId: id,
                 encounterType: params.encounterType,
-                anthropicKey: app.anthropicKey,
                 userId: app.userId
             )
 
