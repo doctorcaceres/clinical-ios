@@ -93,6 +93,22 @@ struct ClinicalTitle: View {
 /// Instant-feedback button style. No iOS default delay, no highlight tint —
 /// just a snappy scale-to-0.97 on press that's visible before the finger lifts.
 /// Apply to every Button in the app so the tap response feels web-fast.
+/// THE back button. One style, one size, one place on every screen:
+/// top-left, 17pt semibold chevron, 44×44pt tap target (Apple HIG minimum).
+struct BackButton: View {
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(C.textMuted)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
+    }
+}
+
 struct PressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

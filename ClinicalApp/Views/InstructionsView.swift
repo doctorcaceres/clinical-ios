@@ -22,16 +22,13 @@ struct InstructionsView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Back — returns to the recording screen; the audio stays on disk.
+            // Screen padding is 32; align the button's leading edge to 16pt.
             HStack {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
-                        .foregroundColor(C.textMuted)
-                        .font(.system(size: 16))
-                }
-                .buttonStyle(PressStyle())
-                .disabled(isSubmitting)
+                BackButton { dismiss() }
+                    .disabled(isSubmitting)
                 Spacer()
             }
+            .padding(.horizontal, -16)
 
             Spacer()
 

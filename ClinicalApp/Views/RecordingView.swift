@@ -2,13 +2,25 @@ import SwiftUI
 
 struct RecordingView: View {
     @EnvironmentObject var app: AppState
+    @Environment(\.dismiss) private var dismiss
     // SINGLETON — lives at app level, survives view recycles and backgrounding
     @ObservedObject private var rec = AudioRecorder.shared
     @State private var stopFailed = false
+    @State private var showDiscardConfirm = false
     let type: String
 
     var body: some View {
         VStack(spacing: 0) {
+            // Standard top-left back. Never discards audio without confirming.
+            // Screen padding is 32; pull the bar out so the button's leading
+            // edge sits at 16pt like every other screen.
+            HStack {
+                BackButton { handleBack() }
+                    .disabled(rec.isFinalizing)
+                Spacer()
+            }
+            .padding(.horizontal, -16)
+
             Spacer()
             ClinicalTitle().padding(.bottom, 32)
 
@@ -31,6 +43,26 @@ struct RecordingView: View {
         }
         // Do NOT call rec.reset() on disappear — that would kill background recording.
         // Stop / Back buttons explicitly clean up.
+        .alert("Discard this recording?", isPresented: $showDiscardConfirm) {
+            Button("Discard", role: .destructive) {
+                rec.reset()
+                dismiss()
+            }
+            Button("Keep Recording", role: .cancel) {}
+        } message: {
+            Text("The audio recorded so far will be deleted.")
+        }
+    }
+
+    /// Back is immediate only when nothing has been captured. A recording in
+    /// progress or paused always gets the discard confirmation first.
+    private func handleBack() {
+        if rec.isRecording {
+            showDiscardConfirm = true
+        } else {
+            rec.reset()
+            dismiss()
+        }
     }
 
     // MARK: - Badge
@@ -144,7 +176,6 @@ struct RecordingView: View {
                     Text("Tap to start recording")
                         .font(.system(size: 13))
                         .foregroundColor(C.textDim)
-                    backButton.padding(.top, 8)
                 }
             } else {
                 HStack(spacing: 32) {
@@ -218,15 +249,4 @@ struct RecordingView: View {
         }
     }
 
-    private var backButton: some View {
-        Button {
-            rec.reset()  // clean up if user bails before starting
-            app.home()
-        } label: {
-            Text("Back")
-                .font(.system(size: 14))
-                .foregroundColor(C.textDim)
-        }
-        .buttonStyle(PressStyle())
-    }
 }

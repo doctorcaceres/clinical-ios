@@ -22,12 +22,7 @@ struct NoteReviewView: View {
             VStack(alignment: .leading, spacing: 16) {
                 // Header
                 HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(C.textMuted)
-                            .font(.system(size: 16))
-                    }
-                    .buttonStyle(PressStyle())
+                    BackButton { dismiss() }
                     Spacer()
                     VStack(spacing: 2) {
                         Text(encounter.displayType)
@@ -40,7 +35,7 @@ struct NoteReviewView: View {
                             .foregroundColor(C.textDim)
                     }
                     Spacer()
-                    Color.clear.frame(width: 24)
+                    Color.clear.frame(width: 44)
                 }
 
                 // Banner

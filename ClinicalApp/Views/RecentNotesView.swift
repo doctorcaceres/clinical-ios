@@ -21,18 +21,14 @@ struct RecentNotesView: View {
             VStack(alignment: .leading, spacing: 16) {
                 // Header
                 HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(C.textMuted)
-                    }
-                    .buttonStyle(PressStyle())
+                    BackButton { dismiss() }
                     Spacer()
                     Text("RECENT NOTES")
                         .font(.system(size: 16, weight: .semibold))
                         .tracking(2)
                         .foregroundColor(C.text)
                     Spacer()
-                    Color.clear.frame(width: 24)
+                    Color.clear.frame(width: 44)
                 }
 
                 if loading {

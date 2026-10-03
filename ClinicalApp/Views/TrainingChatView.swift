@@ -23,19 +23,14 @@ struct TrainingChatView: View {
         VStack(spacing: 0) {
             // Top bar — back saves the session summary and pops
             HStack {
-                Button { endSession() } label: {
-                    Image(systemName: "chevron.left")
-                        .foregroundColor(C.textMuted)
-                        .font(.system(size: 16))
-                }
-                .buttonStyle(PressStyle())
+                BackButton { endSession() }
                 Spacer()
                 Text("TRAINING")
                     .font(.system(size: 12, weight: .semibold))
                     .tracking(2)
                     .foregroundColor(C.warning)
                 Spacer()
-                Color.clear.frame(width: 24, height: 1)
+                Color.clear.frame(width: 44, height: 1)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
