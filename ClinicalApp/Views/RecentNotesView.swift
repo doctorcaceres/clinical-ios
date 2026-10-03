@@ -7,6 +7,11 @@ struct RecentNotesView: View {
     @State private var loading = true
     @State private var loadError: String?
     @State private var deleteTarget: Encounter?
+    @State private var page = 0
+    @State private var total = 0
+
+    private let pageSize = 10
+    private var pageCount: Int { max(1, Int(ceil(Double(total) / Double(pageSize)))) }
 
     // Poll every 5s while visible so Processing → Ready updates live
     private let poll = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
@@ -65,6 +70,7 @@ struct RecentNotesView: View {
                     ForEach(encounters) { enc in
                         encounterRow(enc)
                     }
+                    paginationBar
                 }
             }
             .padding()
@@ -170,11 +176,65 @@ struct RecentNotesView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(C.border, lineWidth: 1))
     }
 
+    // MARK: - Pagination bar
+    private var paginationBar: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Button { changePage(to: page - 1) } label: {
+                    Text("Previous")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(page == 0 ? C.textDark : C.text)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(C.borderPri, lineWidth: 1))
+                }
+                .buttonStyle(PressStyle())
+                .disabled(page == 0)
+
+                Spacer()
+
+                Button { changePage(to: page + 1) } label: {
+                    Text("Next")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(page >= pageCount - 1 ? C.textDark : C.text)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(C.borderPri, lineWidth: 1))
+                }
+                .buttonStyle(PressStyle())
+                .disabled(page >= pageCount - 1)
+            }
+
+            Text("Page \(page + 1) of \(pageCount)  •  \(total) note\(total == 1 ? "" : "s")")
+                .font(.system(size: 12))
+                .foregroundColor(C.textDim)
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 24)
+    }
+
+    private func changePage(to newPage: Int) {
+        let clamped = min(max(0, newPage), pageCount - 1)
+        guard clamped != page else { return }
+        page = clamped
+        Task { await load() }
+    }
+
     private func load(silent: Bool = false) async {
         if !silent { loading = true; loadError = nil }
         do {
-            encounters = try await DB.shared.encounters()
-            if !silent { print("[RecentNotes] Loaded \(encounters.count) encounters") }
+            let result = try await DB.shared.encountersPage(page: page, pageSize: pageSize)
+            // Page emptied out (deletes) — step back to the last real page
+            if result.rows.isEmpty && page > 0 && result.total > 0 {
+                page = max(0, Int(ceil(Double(result.total) / Double(pageSize))) - 1)
+                let retry = try await DB.shared.encountersPage(page: page, pageSize: pageSize)
+                encounters = retry.rows
+                total = retry.total
+            } else {
+                encounters = result.rows
+                total = result.total
+            }
+            if !silent { print("[RecentNotes] Loaded page \(page + 1): \(encounters.count) of \(total) encounters") }
             loadError = nil
             // Clear the home banner once the pending note is ready
             if let pid = app.pendingNoteId,
@@ -195,6 +255,8 @@ struct RecentNotesView: View {
     private func delete(_ enc: Encounter) async {
         try? await DB.shared.delete(id: enc.id)
         encounters.removeAll { $0.id == enc.id }
+        // Refill the page from the server and refresh the total
+        await load(silent: true)
     }
 
     private func retry(_ enc: Encounter) {

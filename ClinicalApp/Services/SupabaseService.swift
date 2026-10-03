@@ -55,6 +55,33 @@ final class DB {
         return try JSONDecoder().decode([Encounter].self, from: data)
     }
 
+    struct EncounterPage {
+        let rows: [Encounter]
+        let total: Int
+    }
+
+    /// Server-side pagination: limit/offset, newest first. The total comes
+    /// from the Content-Range header when Prefer: count=exact is sent
+    /// (e.g. "0-9/137").
+    func encountersPage(page: Int, pageSize: Int = 10) async throws -> EncounterPage {
+        let offset = max(0, page) * pageSize
+        let url = URL(string: "\(API.supabaseURL)/rest/v1/encounters?select=*&order=created_at.desc&limit=\(pageSize)&offset=\(offset)")!
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 15
+        for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
+        req.setValue("count=exact", forHTTPHeaderField: "Prefer")
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        let rows = try JSONDecoder().decode([Encounter].self, from: data)
+        var total = rows.count
+        if let http = resp as? HTTPURLResponse,
+           let range = http.value(forHTTPHeaderField: "Content-Range"),
+           let totalPart = range.split(separator: "/").last,
+           let t = Int(totalPart) {
+            total = t
+        }
+        return EncounterPage(rows: rows, total: total)
+    }
+
     func encounter(id: String) async throws -> Encounter? {
         let url = URL(string: "\(API.supabaseURL)/rest/v1/encounters?id=eq.\(id)&select=*")!
         var req = URLRequest(url: url)
