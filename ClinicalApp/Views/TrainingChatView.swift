@@ -3,6 +3,7 @@ import SwiftUI
 /// Chat-based style refinement (Training Mode Path 2).
 struct TrainingChatView: View {
     @EnvironmentObject var app: AppState
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject private var rec = AudioRecorder.shared
 
     @State private var messages: [ChatMsg] = []
@@ -20,21 +21,21 @@ struct TrainingChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Top bar
+            // Top bar — back saves the session summary and pops
             HStack {
                 Button { endSession() } label: {
-                    Text("Done")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: 0x888888))
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(C.textMuted)
+                        .font(.system(size: 16))
                 }
                 .buttonStyle(PressStyle())
                 Spacer()
-                Text("Style Chat")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(C.textMuted)
+                Text("TRAINING")
+                    .font(.system(size: 12, weight: .semibold))
+                    .tracking(2)
+                    .foregroundColor(C.warning)
                 Spacer()
-                // Balance the layout
-                Text("Done").font(.system(size: 14)).foregroundColor(.clear)
+                Color.clear.frame(width: 24, height: 1)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -52,11 +53,23 @@ struct TrainingChatView: View {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         if messages.isEmpty {
-                            Text("Tell me how you want your notes written.\nI'll extract style rules from your instructions.")
-                                .font(.system(size: 14))
-                                .foregroundColor(C.textDim)
-                                .multilineTextAlignment(.center)
-                                .padding(.top, 40)
+                            VStack(spacing: 12) {
+                                Image(systemName: "bubble.left.and.bubble.right.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(C.accent.opacity(0.6))
+                                Text("I'm your Clinical companion.")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(C.text)
+                                Text("Tell me how you want your notes written — every preference becomes a rule for future notes. You can also ask me how the app works, or anything about your documentation.")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(C.textMuted)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 12)
+                                Text("Type below, or tap the mic to dictate.")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(C.textDim)
+                            }
+                            .padding(.top, 48)
                         }
 
                         ForEach(messages) { msg in
@@ -120,7 +133,7 @@ struct TrainingChatView: View {
         .toolbar(.hidden, for: .navigationBar)
     }
 
-    // MARK: - Mic button
+    // MARK: - Mic button — prominent: dictation is a first-class input method
     private var micButton: some View {
         Button { toggleMic() } label: {
             ZStack {
@@ -128,26 +141,26 @@ struct TrainingChatView: View {
                 if rec.isRecording {
                     Circle()
                         .fill(C.accent.opacity(0.25))
-                        .frame(width: 40, height: 40)
+                        .frame(width: 54, height: 54)
                         .scaleEffect(pulse ? 1.3 : 0.85)
                         .opacity(pulse ? 0.3 : 0.7)
                 }
 
-                // Base circle
+                // Base circle — filled accent when idle so the mic stands out
                 Circle()
-                    .fill(rec.isRecording ? C.accent.opacity(0.15) : Color(hex: 0x1A1A1A))
-                    .frame(width: 36, height: 36)
+                    .fill(rec.isRecording ? C.error : C.accent)
+                    .frame(width: 48, height: 48)
 
                 // Icon (changes to stop while recording; spinner while transcribing)
                 if isTranscribing {
-                    ProgressView().tint(C.accent).scaleEffect(0.7)
+                    ProgressView().tint(C.bg).scaleEffect(0.8)
                 } else {
                     Image(systemName: rec.isRecording ? "stop.fill" : "mic.fill")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(C.accent)
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundColor(C.bg)
                 }
             }
-            .frame(width: 40, height: 40)
+            .frame(width: 54, height: 54)
         }
         .buttonStyle(PressStyle())
         .disabled(isTranscribing || isSending)
@@ -238,7 +251,7 @@ struct TrainingChatView: View {
                 await APIService.saveChatSession(userId: uid, history: history)
             }
         }
-        app.home()
+        dismiss()
     }
 
     // MARK: - Send message

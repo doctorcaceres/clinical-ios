@@ -28,8 +28,8 @@ struct HomeView: View {
                 }
                 .padding(.vertical, 6)
 
-                // Training Mode
-                secondaryButton("Training Mode") { app.push(.recording("training")) }
+                // Training Mode — chat-first with the built-in AI
+                secondaryButton("Training Mode") { app.push(.trainingChat) }
 
                 // Recent Notes
                 secondaryButton("Recent Notes") { app.push(.recentNotes) }

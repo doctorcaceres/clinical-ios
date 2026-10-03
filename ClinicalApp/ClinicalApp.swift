@@ -1,8 +1,29 @@
 import SwiftUI
+import UserNotifications
+
+/// Receives the background-URLSession relaunch: when the note pipeline
+/// finishes while the app is dead, iOS relaunches us here so
+/// BackgroundPipeline can process the completion and post the notification.
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        guard identifier == BackgroundPipeline.sessionIdentifier else { completionHandler(); return }
+        BackgroundPipeline.shared.backgroundCompletionHandler = completionHandler
+        BackgroundPipeline.shared.activate()
+    }
+}
 
 @main
 struct ClinicalApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var app = AppState()
+
+    init() {
+        // Local notification permission ("Note ready") — one-time system prompt.
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        BackgroundPipeline.shared.activate()
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -10,13 +31,11 @@ struct ClinicalApp: App {
                 HomeView()
                     .navigationDestination(for: Route.self) { route in
                         switch route {
-                        case .recording(let t):             RecordingView(type: t)
-                        case .instructions(let p):          InstructionsView(params: p)
-                        case .processing(let p):            ProcessingView(params: p)
-                        case .trainingProcessing(let p):    TrainingProcessingView(params: p)
-                        case .trainingChat:                 TrainingChatView()
-                        case .noteReview(let e):            NoteReviewView(encounter: e)
-                        case .recentNotes:                  RecentNotesView()
+                        case .recording(let t):     RecordingView(type: t)
+                        case .instructions(let p):  InstructionsView(params: p)
+                        case .trainingChat:         TrainingChatView()
+                        case .noteReview(let e):    NoteReviewView(encounter: e)
+                        case .recentNotes:          RecentNotesView()
                         }
                     }
             }
@@ -29,10 +48,8 @@ struct ClinicalApp: App {
 
 // MARK: - Routes
 enum Route: Hashable {
-    case recording(String)              // encounter type: "new", "followup", "training"
+    case recording(String)              // encounter type: "new", "followup"
     case instructions(ProcessParams)    // optional post-recording instructions
-    case processing(ProcessParams)
-    case trainingProcessing(TrainingParams)
     case trainingChat
     case noteReview(Encounter)
     case recentNotes
@@ -45,11 +62,6 @@ struct ProcessParams: Hashable {
     let instructions: String?
 }
 
-struct TrainingParams: Hashable {
-    let audioURL: URL
-    let elapsed: Int
-}
-
 // MARK: - Global state
 @MainActor
 final class AppState: ObservableObject {
@@ -59,30 +71,21 @@ final class AppState: ObservableObject {
     // TODO: Replace with authenticated user_id when auth is implemented
     let userId = "test_user_1"
 
-    /// Transcription kicked off the instant recording stops, so it runs
-    /// while the doctor is on the Instructions screen. ProcessingView
-    /// claims it via takeBackgroundTranscription.
-    private var pendingTranscription: (audioURL: URL, task: Task<String, Error>)?
-
     init() {
         // API keys live ONLY on the server now. Purge any key a previous
         // build stored in the Keychain — idempotent, runs on every launch.
         Keychain.delete("anthropic_key")
-    }
 
-    func startBackgroundTranscription(audioURL: URL, durationSeconds: Int) {
-        pendingTranscription?.task.cancel()
-        let task = Task {
-            try await APIService.transcribe(fileURL: audioURL, durationSeconds: durationSeconds)
+        // Clear the home "note is being written" banner when the background
+        // pipeline reports the note landed.
+        NotificationCenter.default.addObserver(forName: .clinicalNoteReady, object: nil, queue: .main) { [weak self] note in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if let id = note.object as? String, self.pendingNoteId == id || self.pendingNoteId == nil {
+                    self.pendingNoteId = nil
+                }
+            }
         }
-        pendingTranscription = (audioURL, task)
-        print("[AppState] Background transcription started for \(audioURL.lastPathComponent)")
-    }
-
-    func takeBackgroundTranscription(for audioURL: URL) -> Task<String, Error>? {
-        guard let p = pendingTranscription, p.audioURL == audioURL else { return nil }
-        pendingTranscription = nil
-        return p.task
     }
 
     func push(_ route: Route) { path.append(route) }

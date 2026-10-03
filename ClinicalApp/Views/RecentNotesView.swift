@@ -2,17 +2,21 @@ import SwiftUI
 
 struct RecentNotesView: View {
     @EnvironmentObject var app: AppState
+    @Environment(\.dismiss) private var dismiss
     @State private var encounters: [Encounter] = []
     @State private var loading = true
     @State private var loadError: String?
     @State private var deleteTarget: Encounter?
+
+    // Poll every 5s while visible so Processing → Ready updates live
+    private let poll = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 // Header
                 HStack {
-                    Button { app.home() } label: {
+                    Button { dismiss() } label: {
                         Image(systemName: "chevron.left")
                             .foregroundColor(C.textMuted)
                     }
@@ -69,6 +73,9 @@ struct RecentNotesView: View {
         .background(C.bg)
         .navigationBarHidden(true)
         .task { await load() }
+        .onReceive(poll) { _ in
+            Task { await load(silent: true) }
+        }
         .alert("Delete this encounter?", isPresented: .init(
             get: { deleteTarget != nil },
             set: { if !$0 { deleteTarget = nil } }
@@ -163,18 +170,26 @@ struct RecentNotesView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(C.border, lineWidth: 1))
     }
 
-    private func load() async {
-        loading = true
-        loadError = nil
+    private func load(silent: Bool = false) async {
+        if !silent { loading = true; loadError = nil }
         do {
             encounters = try await DB.shared.encounters()
-            print("[RecentNotes] Loaded \(encounters.count) encounters")
+            if !silent { print("[RecentNotes] Loaded \(encounters.count) encounters") }
+            loadError = nil
+            // Clear the home banner once the pending note is ready
+            if let pid = app.pendingNoteId,
+               let pending = encounters.first(where: { $0.id == pid }),
+               pending.hasNote {
+                app.pendingNoteId = nil
+            }
         } catch {
             print("[RecentNotes] Failed to load encounters: \(error)")
-            loadError = error.localizedDescription
-            encounters = []
+            if !silent {
+                loadError = error.localizedDescription
+                encounters = []
+            }
         }
-        loading = false
+        if !silent { loading = false }
     }
 
     private func delete(_ enc: Encounter) async {

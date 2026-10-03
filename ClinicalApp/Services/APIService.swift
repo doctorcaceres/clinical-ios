@@ -19,6 +19,30 @@ enum APIService {
     // MARK: - Storage bucket name
     static let storageBucket = "encounter-audio"
 
+    /// Ask the server to sign an upload URL for the private bucket.
+    /// Used by the foreground upload path and by BackgroundPipeline.
+    static func requestSignedUploadURL(filename: String) async throws -> URL {
+        let endpoint = URL(string: "https://clinical-app-ten.vercel.app/api/upload-url")!
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 30
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["filename": filename])
+
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let urlString = json["signedUrl"] as? String,
+              let url = URL(string: urlString) else {
+            let errMsg = parseError(data) ?? "Could not get signed upload URL (HTTP \(status))"
+            print("[API] upload-url failed: \(errMsg)")
+            throw ClinicalError.server(errMsg)
+        }
+        print("[API] signed URL issued for \(filename)")
+        return url
+    }
+
     /// Upload a recorded M4A from local Documents to the PRIVATE Supabase
     /// Storage bucket via a server-issued signed URL. Two steps:
     ///   1. POST /api/upload-url with the filename → server (holding the
@@ -42,24 +66,7 @@ enum APIService {
         let filename = fileURL.lastPathComponent
 
         // Step 1: ask the server for a signed upload URL
-        let signEndpoint = URL(string: "https://clinical-app-ten.vercel.app/api/upload-url")!
-        var signReq = URLRequest(url: signEndpoint)
-        signReq.httpMethod = "POST"
-        signReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        signReq.timeoutInterval = 30
-        signReq.httpBody = try JSONSerialization.data(withJSONObject: ["filename": filename])
-
-        let (signData, signResp) = try await URLSession.shared.data(for: signReq)
-        let signStatus = (signResp as? HTTPURLResponse)?.statusCode ?? 0
-        guard signStatus == 200,
-              let signJSON = try? JSONSerialization.jsonObject(with: signData) as? [String: Any],
-              let signedUrlString = signJSON["signedUrl"] as? String,
-              let signedUrl = URL(string: signedUrlString) else {
-            let errMsg = parseError(signData) ?? "Could not get signed upload URL (HTTP \(signStatus))"
-            print("[API] upload-url failed: \(errMsg)")
-            throw ClinicalError.server(errMsg)
-        }
-        print("[API] signed URL issued")
+        let signedUrl = try await requestSignedUploadURL(filename: filename)
 
         // Step 2: PUT the audio to the signed URL, streaming from disk
         var req = URLRequest(url: signedUrl)
@@ -155,7 +162,7 @@ enum APIService {
     }
 
     /// Convenience: upload to Storage + transcribe. Used by training mode and chat mic.
-    /// (ProcessingView splits these so it can cache the URL across retries.)
+    /// (Instructions-screen dictation and Training Chat use this one-shot path.)
     static func transcribe(fileURL: URL, durationSeconds: Int = 0) async throws -> String {
         let url = try await uploadAudioToStorage(fileURL: fileURL)
         return try await transcribeFromURL(url, durationSeconds: durationSeconds)
@@ -189,81 +196,6 @@ enum APIService {
             print("[API] generate-note error: \(errMsg)")
             throw ClinicalError.server(errMsg)
         }
-    }
-
-    // MARK: - Generate note, STREAMING — deltas arrive as Claude writes.
-    // Server saves the finished note to Supabase before sending done:true,
-    // so the DB row is authoritative; the streamed text is for live display.
-    static func generateNoteStream(
-        encounterId: String,
-        encounterType: String,
-        userId: String,
-        onDelta: @escaping @MainActor (String) -> Void
-    ) async throws {
-        let url = URL(string: "https://clinical-app-ten.vercel.app/api/generate-note-stream")!
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.timeoutInterval = 600
-
-        let body: [String: String] = [
-            "encounter_id": encounterId,
-            "encounter_type": encounterType,
-            "user_id": userId,    // TODO: Replace with authenticated user_id
-        ]
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (bytes, response) = try await audioSession.bytes(for: req)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else {
-            throw ClinicalError.server("Note stream failed (HTTP \(status))")
-        }
-
-        var completedOK = false
-        for try await line in bytes.lines {
-            guard line.hasPrefix("data: ") else { continue }
-            guard let data = String(line.dropFirst(6)).data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
-            if let t = obj["t"] as? String, !t.isEmpty {
-                await onDelta(t)
-            }
-            if obj["done"] as? Bool == true {
-                if obj["ok"] as? Bool == true {
-                    completedOK = true
-                } else {
-                    throw ClinicalError.server((obj["error"] as? String) ?? "Note generation failed mid-stream")
-                }
-            }
-        }
-        guard completedOK else {
-            throw ClinicalError.server("Note stream ended unexpectedly")
-        }
-    }
-
-    // MARK: - Extract style rules from training dictation → returns rule count
-    static func extractStyleRules(transcript: String, userId: String) async throws -> Int {
-        let url = URL(string: "https://clinical-app-ten.vercel.app/api/extract-style-rules")!
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.timeoutInterval = 120
-
-        let body: [String: String] = [
-            "transcript": transcript,
-            "user_id": userId,    // TODO: Replace with authenticated user_id
-        ]
-
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await URLSession.shared.data(for: req)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-
-        guard status == 200 else {
-            let errMsg = parseError(data) ?? "Style extraction failed (HTTP \(status))"
-            throw ClinicalError.server(errMsg)
-        }
-
-        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        return json?["rule_count"] as? Int ?? 0
     }
 
     // MARK: - Training chat: send message → get response + updated rule count

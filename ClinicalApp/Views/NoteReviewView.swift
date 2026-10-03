@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NoteReviewView: View {
     @EnvironmentObject var app: AppState
+    @Environment(\.dismiss) private var dismiss
     let encounter: Encounter
 
     @State private var note: [String: String] = [:]
@@ -21,7 +22,7 @@ struct NoteReviewView: View {
             VStack(alignment: .leading, spacing: 16) {
                 // Header
                 HStack {
-                    Button { app.home() } label: {
+                    Button { dismiss() } label: {
                         Image(systemName: "chevron.left")
                             .foregroundColor(C.textMuted)
                             .font(.system(size: 16))

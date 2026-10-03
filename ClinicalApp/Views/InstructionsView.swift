@@ -1,26 +1,38 @@
 import SwiftUI
 
-/// Post-recording instructions capture — parity with the web app's
-/// InstructionsScreen. Shown between Stop and Processing for clinical
-/// encounters. While the doctor dictates or types here, the main encounter
-/// audio is ALREADY uploading + transcribing in the background
-/// (AppState.startBackgroundTranscription), so this screen hides that wait.
-///
-/// Instructions travel in ProcessParams.instructions → the encounters row's
-/// doctor_instructions column — the exact field the web app uses — so
-/// generate-note and the learning pipeline behave identically.
+/// Post-recording instructions capture. Shown after Stop for clinical
+/// encounters. On Generate/Skip the encounter row is created (with
+/// doctor_instructions — the same column the web app writes) and the
+/// kill-proof BackgroundPipeline takes over; the app returns Home
+/// immediately and the note finishes server-side no matter what the
+/// phone does.
 struct InstructionsView: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var rec = AudioRecorder.shared
     let params: ProcessParams
 
+    @Environment(\.dismiss) private var dismiss
     @State private var text = ""
     @State private var isTranscribing = false
+    @State private var isSubmitting = false
+    @State private var submitError = ""
     @State private var pulse = false
     @FocusState private var fieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
+            // Back — returns to the recording screen; the audio stays on disk.
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(C.textMuted)
+                        .font(.system(size: 16))
+                }
+                .buttonStyle(PressStyle())
+                .disabled(isSubmitting)
+                Spacer()
+            }
+
             Spacer()
 
             Text("RECORDING COMPLETE")
@@ -70,21 +82,32 @@ struct InstructionsView: View {
 
             Spacer()
 
+            if !submitError.isEmpty {
+                Text(submitError)
+                    .font(.system(size: 12))
+                    .foregroundColor(C.error)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 10)
+            }
+
             VStack(spacing: 10) {
-                Button { generate() } label: {
-                    Text("Generate Note")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(C.bg)
-                        .frame(maxWidth: 300)
-                        .padding(.vertical, 14)
-                        .background(C.accent)
-                        .cornerRadius(12)
+                Button { submit(withInstructions: true) } label: {
+                    HStack(spacing: 8) {
+                        if isSubmitting { ProgressView().tint(C.bg).scaleEffect(0.8) }
+                        Text("Generate Note")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(C.bg)
+                    }
+                    .frame(maxWidth: 300)
+                    .padding(.vertical, 14)
+                    .background(C.accent)
+                    .cornerRadius(12)
                 }
                 .buttonStyle(PressStyle())
-                .disabled(rec.isRecording || isTranscribing)
-                .opacity(rec.isRecording || isTranscribing ? 0.5 : 1.0)
+                .disabled(rec.isRecording || isTranscribing || isSubmitting)
+                .opacity(rec.isRecording || isTranscribing || isSubmitting ? 0.5 : 1.0)
 
-                Button { skip() } label: {
+                Button { submit(withInstructions: false) } label: {
                     Text("Skip")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(C.textMuted)
@@ -93,8 +116,8 @@ struct InstructionsView: View {
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(C.borderPri, lineWidth: 1))
                 }
                 .buttonStyle(PressStyle())
-                .disabled(rec.isRecording || isTranscribing)
-                .opacity(rec.isRecording || isTranscribing ? 0.5 : 1.0)
+                .disabled(rec.isRecording || isTranscribing || isSubmitting)
+                .opacity(rec.isRecording || isTranscribing || isSubmitting ? 0.5 : 1.0)
             }
             .padding(.bottom, 40)
         }
@@ -165,23 +188,41 @@ struct InstructionsView: View {
         }
     }
 
-    // MARK: - Continue to processing
-    private func generate() {
+    // MARK: - Hand off to the background pipeline and go home
+    /// Creates the encounter row (so Recent Notes shows "Processing"
+    /// immediately), enqueues the kill-proof background upload + server
+    /// pipeline, then returns straight to Home with the banner. The note
+    /// finishes even if the phone is locked or the app is gone.
+    private func submit(withInstructions: Bool) {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+        submitError = ""
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        app.push(.processing(ProcessParams(
-            encounterType: params.encounterType,
-            audioURL: params.audioURL,
-            elapsed: params.elapsed,
-            instructions: trimmed.isEmpty ? nil : trimmed
-        )))
-    }
+        let instructions = (withInstructions && !trimmed.isEmpty) ? trimmed : nil
 
-    private func skip() {
-        app.push(.processing(ProcessParams(
-            encounterType: params.encounterType,
-            audioURL: params.audioURL,
-            elapsed: params.elapsed,
-            instructions: nil
-        )))
+        Task {
+            do {
+                let id = try await DB.shared.createEncounter(type: params.encounterType)
+                var fields: [String: Any] = [
+                    "elapsed": params.elapsed,
+                    "status": "processing",
+                ]
+                if let inst = instructions { fields["doctor_instructions"] = inst }
+                try await DB.shared.update(id: id, fields: fields)
+
+                try await BackgroundPipeline.shared.submit(
+                    encounterId: id,
+                    encounterType: params.encounterType,
+                    userId: app.userId,
+                    audioURL: params.audioURL
+                )
+
+                app.pendingNoteId = id
+                app.home()
+            } catch {
+                submitError = "Could not start: \(error.localizedDescription). Your recording is safe — try again."
+                isSubmitting = false
+            }
+        }
     }
 }

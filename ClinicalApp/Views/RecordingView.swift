@@ -18,17 +18,6 @@ struct RecordingView: View {
 
             recordingContent
 
-            // Chat button for training mode (only when not recording)
-            if type == "training" && !rec.isRecording {
-                Button { app.push(.trainingChat) } label: {
-                    Text("Chat")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: 0x888888))
-                }
-                .buttonStyle(PressStyle())
-                .padding(.top, 16)
-            }
-
             Spacer()
         }
         .padding(32)
@@ -46,23 +35,15 @@ struct RecordingView: View {
 
     // MARK: - Badge
     private var badge: some View {
-        Text(badgeText)
+        Text(type == "new" ? "New Patient" : "Follow Up")
             .font(.system(size: 11, weight: .medium))
             .tracking(1)
             .textCase(.uppercase)
-            .foregroundColor(type == "training" ? C.warning : C.accent)
+            .foregroundColor(C.accent)
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
-            .background(type == "training" ? C.warningBg : C.accentBg)
+            .background(C.accentBg)
             .cornerRadius(12)
-    }
-
-    private var badgeText: String {
-        switch type {
-        case "training": return "Training"
-        case "new": return "New Patient"
-        default: return "Follow Up"
-        }
     }
 
     // MARK: - Recording interface
@@ -160,7 +141,7 @@ struct RecordingView: View {
                     RecordButton(isRecording: false) {
                         Task { try? await rec.start() }
                     }
-                    Text(type == "training" ? "Dictate your style preferences" : "Tap to start recording")
+                    Text("Tap to start recording")
                         .font(.system(size: 13))
                         .foregroundColor(C.textDim)
                     backButton.padding(.top, 8)
@@ -213,7 +194,7 @@ struct RecordingView: View {
         if rec.recordingStopped { return "Tap stop to save what was captured" }
         if rec.interruptionPause { return "Tap play to retry, or stop to save what you have" }
         if rec.isPaused { return "Resume or stop recording" }
-        return type == "training" ? "Listening..." : "Recording encounter"
+        return "Recording encounter"
     }
 
     private func handleStop() {
@@ -226,23 +207,14 @@ struct RecordingView: View {
                 stopFailed = true
                 return
             }
-            if type == "training" {
-                app.push(.trainingProcessing(TrainingParams(
-                    audioURL: url,
-                    elapsed: elapsed
-                )))
-            } else {
-                // Start upload + transcription IMMEDIATELY in the background —
-                // it runs while the doctor is on the Instructions screen, so
-                // dictating instructions hides the transcription wait entirely.
-                app.startBackgroundTranscription(audioURL: url, durationSeconds: elapsed)
-                app.push(.instructions(ProcessParams(
-                    encounterType: type,
-                    audioURL: url,
-                    elapsed: elapsed,
-                    instructions: nil
-                )))
-            }
+            // Instructions screen next; the kill-proof background pipeline
+            // takes over when the doctor taps Generate or Skip there.
+            app.push(.instructions(ProcessParams(
+                encounterType: type,
+                audioURL: url,
+                elapsed: elapsed,
+                instructions: nil
+            )))
         }
     }
 
