@@ -141,7 +141,7 @@ struct RecentNotesView: View {
                     .buttonStyle(PressStyle())
                 }
 
-                if enc.isError {
+                if showRetry(enc) {
                     Button { retry(enc) } label: {
                         Text("Retry")
                             .font(.system(size: 13, weight: .medium))
@@ -246,6 +246,19 @@ struct RecentNotesView: View {
             }
         }
         if !silent { loading = false }
+    }
+
+    /// Retry is shown for errored rows and for rows stuck in "processing"
+    /// for over 2 minutes — in both cases only when a transcript exists,
+    /// since generate-note cannot succeed without one. Mirrors the web app.
+    private func showRetry(_ enc: Encounter) -> Bool {
+        guard enc.transcript != nil else { return false }
+        if enc.isError { return true }
+        guard enc.isProcessing, let iso = enc.updatedAt ?? enc.createdAt else { return false }
+        let f1 = ISO8601DateFormatter(); f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let f2 = ISO8601DateFormatter(); f2.formatOptions = [.withInternetDateTime]
+        guard let d = f1.date(from: iso) ?? f2.date(from: iso) else { return false }
+        return Date().timeIntervalSince(d) > 120
     }
 
     private func delete(_ enc: Encounter) async {
