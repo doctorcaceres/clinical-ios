@@ -210,7 +210,6 @@ struct InstructionsView: View {
                 try await BackgroundPipeline.shared.submit(
                     encounterId: id,
                     encounterType: params.encounterType,
-                    userId: app.userId,
                     audioURL: params.audioURL
                 )
 

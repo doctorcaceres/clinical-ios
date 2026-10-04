@@ -36,9 +36,9 @@ final class BackgroundPipeline: NSObject {
     struct Job: Codable {
         let encounterId: String
         let encounterType: String
-        let userId: String
         let filename: String
         let localAudioPath: String
+        var retried: Bool? = nil
     }
 
     /// Ensure the session (and its pending-task delegate wiring) exists —
@@ -46,7 +46,7 @@ final class BackgroundPipeline: NSObject {
     func activate() { _ = session }
 
     // MARK: - Submit (called while app is foreground, right after row creation)
-    func submit(encounterId: String, encounterType: String, userId: String, audioURL: URL) async throws {
+    func submit(encounterId: String, encounterType: String, audioURL: URL) async throws {
         let filename = audioURL.lastPathComponent
         let signedURL = try await APIService.requestSignedUploadURL(filename: filename)
 
@@ -61,7 +61,7 @@ final class BackgroundPipeline: NSObject {
         req.timeoutInterval = 600
 
         let job = Job(encounterId: encounterId, encounterType: encounterType,
-                      userId: userId, filename: filename, localAudioPath: audioURL.path)
+                      filename: filename, localAudioPath: audioURL.path)
         let task = session.uploadTask(with: req, fromFile: audioURL)
         task.taskDescription = "upload|" + (Self.encode(job) ?? "")
         task.resume()
@@ -69,12 +69,11 @@ final class BackgroundPipeline: NSObject {
     }
 
     // MARK: - Step 2: trigger server-side processing
-    private func enqueueTrigger(_ job: Job) {
+    private func enqueueTrigger(_ job: Job) async {
         do {
             let body: [String: String] = [
                 "encounter_id": job.encounterId,
                 "encounter_type": job.encounterType,
-                "user_id": job.userId,
                 "audio_filename": job.filename,
             ]
             let data = try JSONSerialization.data(withJSONObject: body)
@@ -88,6 +87,9 @@ final class BackgroundPipeline: NSObject {
             var req = URLRequest(url: URL(string: "https://clinical-app-ten.vercel.app/api/process-encounter")!)
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if let t = await AuthService.shared.validToken() {
+                req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization")
+            }
             req.timeoutInterval = 600
 
             let task = session.uploadTask(with: req, fromFile: bodyFile)
@@ -166,13 +168,20 @@ extension BackgroundPipeline: URLSessionTaskDelegate, URLSessionDelegate {
         switch step {
         case "upload":
             if error == nil && (200...299).contains(status) {
-                enqueueTrigger(job)
+                Task { await self.enqueueTrigger(job) }
             } else {
                 finishWithFailure(job, reason: "Audio upload failed")
             }
         case "trigger":
             if error == nil && status == 200 {
                 finishWithSuccess(job)
+            } else if status == 401 && job.retried != true {
+                // Token likely expired while the task waited in the background
+                // queue — refresh and retry once with a fresh JWT.
+                print("[Pipeline] Trigger got 401 — refreshing token and retrying once")
+                var retryJob = job
+                retryJob.retried = true
+                Task { await self.enqueueTrigger(retryJob) }
             } else {
                 finishWithFailure(job, reason: "Note generation failed")
             }

@@ -272,8 +272,7 @@ struct RecentNotesView: View {
         Task {
             try? await APIService.generateNote(
                 encounterId: enc.id,
-                encounterType: enc.encounterType,
-                userId: app.userId
+                encounterType: enc.encounterType
             )
             try? await DB.shared.update(id: enc.id, fields: ["status": "processing"])
             await load()

@@ -5,6 +5,20 @@ struct HomeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Settings gear — mirrors the back button's size and placement rules
+            HStack {
+                Spacer()
+                Button { app.push(.settings) } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(C.textMuted)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressStyle())
+            }
+            .padding(.horizontal, -16)
+
             Spacer()
 
             ClinicalTitle()

@@ -58,7 +58,12 @@ func formatDate(_ iso: String) -> String {
 enum Keychain {
     static func save(_ value: String, key: String) {
         guard let data = value.data(using: .utf8) else { return }
-        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrAccount as String: key, kSecValueData as String: data]
+        // AfterFirstUnlock: the background upload pipeline runs while the
+        // phone is LOCKED and must still read the session tokens.
+        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                kSecAttrAccount as String: key,
+                                kSecValueData as String: data,
+                                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock]
         SecItemDelete(q as CFDictionary)
         SecItemAdd(q as CFDictionary, nil)
     }

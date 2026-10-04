@@ -135,11 +135,8 @@ struct NoteReviewView: View {
                 // Fire-and-forget — no UI, no confirmation, no error display
                 if let originalNote = encounter.originalNote {
                     let editedNote = note
-                    // TODO: Replace with authenticated user_id
-                    let uid = app.userId
                     Task.detached {
                         await APIService.extractCorrections(
-                            userId: uid,
                             originalNote: originalNote,
                             editedNote: editedNote
                         )

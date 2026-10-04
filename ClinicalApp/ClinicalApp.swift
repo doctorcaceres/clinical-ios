@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 struct ClinicalApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var app = AppState()
+    @StateObject private var auth = AuthService.shared
 
     init() {
         // Local notification permission ("Note ready") — one-time system prompt.
@@ -27,19 +28,28 @@ struct ClinicalApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack(path: $app.path) {
-                HomeView()
-                    .navigationDestination(for: Route.self) { route in
-                        switch route {
-                        case .recording(let t):     RecordingView(type: t)
-                        case .instructions(let p):  InstructionsView(params: p)
-                        case .trainingChat:         TrainingChatView()
-                        case .noteReview(let e):    NoteReviewView(encounter: e)
-                        case .recentNotes:          RecentNotesView()
-                        }
+            Group {
+                if !auth.isSignedIn {
+                    SignInView()
+                } else if app.showWelcome {
+                    WelcomeView()
+                } else {
+                    NavigationStack(path: $app.path) {
+                        HomeView()
+                            .navigationDestination(for: Route.self) { route in
+                                switch route {
+                                case .recording(let t):     RecordingView(type: t)
+                                case .instructions(let p):  InstructionsView(params: p)
+                                case .trainingChat:         TrainingChatView()
+                                case .noteReview(let e):    NoteReviewView(encounter: e)
+                                case .recentNotes:          RecentNotesView()
+                                case .settings:             SettingsView()
+                                }
+                            }
                     }
+                    .toolbar(.hidden, for: .navigationBar)
+                }
             }
-            .toolbar(.hidden, for: .navigationBar)
             .environmentObject(app)
             .preferredColorScheme(.dark)
         }
@@ -53,6 +63,7 @@ enum Route: Hashable {
     case trainingChat
     case noteReview(Encounter)
     case recentNotes
+    case settings
 }
 
 struct ProcessParams: Hashable {
@@ -67,9 +78,7 @@ struct ProcessParams: Hashable {
 final class AppState: ObservableObject {
     @Published var path = NavigationPath()
     @Published var pendingNoteId: String?
-
-    // TODO: Replace with authenticated user_id when auth is implemented
-    let userId = "test_user_1"
+    @Published var showWelcome = false
 
     init() {
         // API keys live ONLY on the server now. Purge any key a previous
@@ -86,6 +95,26 @@ final class AppState: ObservableObject {
                 }
             }
         }
+    }
+
+    /// First-sign-in onboarding: show the welcome screen only when this
+    /// account has no data yet and hasn't been welcomed on this device.
+    func evaluateWelcome() async {
+        guard let uid = AuthService.shared.uid else { return }
+        let flag = "welcomed_\(uid)"
+        guard !UserDefaults.standard.bool(forKey: flag) else { return }
+        if let page = try? await DB.shared.encountersPage(page: 0, pageSize: 1), page.total == 0 {
+            showWelcome = true
+        } else {
+            UserDefaults.standard.set(true, forKey: flag)
+        }
+    }
+
+    func dismissWelcome() {
+        if let uid = AuthService.shared.uid {
+            UserDefaults.standard.set(true, forKey: "welcomed_\(uid)")
+        }
+        showWelcome = false
     }
 
     func push(_ route: Route) { path.append(route) }

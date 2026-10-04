@@ -16,6 +16,12 @@ enum APIService {
         return URLSession(configuration: config)
     }()
 
+    // MARK: - Auth header — every server call carries the user's JWT;
+    // the server derives user_id from it (never from a body field).
+    private static func bearerHeader() async -> String? {
+        await AuthService.shared.validToken()
+    }
+
     // MARK: - Storage bucket name
     static let storageBucket = "encounter-audio"
 
@@ -27,6 +33,7 @@ enum APIService {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 30
+        if let t = await bearerHeader() { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
         req.httpBody = try JSONSerialization.data(withJSONObject: ["filename": filename])
 
         let (data, resp) = try await URLSession.shared.data(for: req)
@@ -122,6 +129,7 @@ enum APIService {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 600
 
+        if let t = await bearerHeader() { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
         let body: [String: String] = ["audio_url": audioFilename]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -173,18 +181,18 @@ enum APIService {
     // role key) deletes the file immediately after a successful transcript.
 
     // MARK: - Generate note: send encounter_id + type → server generates note via Claude
-    // All API keys live server-side (Vercel env vars). The app never sends keys.
-    static func generateNote(encounterId: String, encounterType: String, userId: String) async throws {
+    // All API keys live server-side; user identity comes from the JWT.
+    static func generateNote(encounterId: String, encounterType: String) async throws {
         let url = URL(string: "https://clinical-app-ten.vercel.app/api/generate-note")!
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 300
 
+        if let t = await bearerHeader() { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
         let body: [String: String] = [
             "encounter_id": encounterId,
             "encounter_type": encounterType,
-            "user_id": userId,    // TODO: Replace with authenticated user_id
         ]
 
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -204,15 +212,15 @@ enum APIService {
         let ruleCount: Int
     }
 
-    static func trainingChat(userId: String, message: String, history: [[String: String]]) async throws -> ChatResponse {
+    static func trainingChat(message: String, history: [[String: String]]) async throws -> ChatResponse {
         let url = URL(string: "https://clinical-app-ten.vercel.app/api/training-chat")!
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 60
 
+        if let t = await bearerHeader() { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
         let body: [String: Any] = [
-            "user_id": userId,       // TODO: Replace with authenticated user_id
             "message": message,
             "conversation_history": history,
         ]
@@ -233,7 +241,7 @@ enum APIService {
     }
 
     // MARK: - Save chat session summary (called on Done in Training Chat)
-    static func saveChatSession(userId: String, history: [[String: String]]) async {
+    static func saveChatSession(history: [[String: String]]) async {
         // Fire-and-forget — errors are silently logged
         do {
             guard !history.isEmpty else { return }
@@ -243,8 +251,8 @@ enum APIService {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.timeoutInterval = 60
 
+            if let t = await bearerHeader() { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
             let body: [String: Any] = [
-                "user_id": userId,       // TODO: Replace with authenticated user_id
                 "conversation_history": history,
             ]
 
@@ -258,7 +266,7 @@ enum APIService {
     }
 
     // MARK: - Extract corrections silently (Save Final learning)
-    static func extractCorrections(userId: String, originalNote: [String: String], editedNote: [String: String]) async {
+    static func extractCorrections(originalNote: [String: String], editedNote: [String: String]) async {
         // Fire-and-forget — errors are silently ignored
         do {
             let url = URL(string: "https://clinical-app-ten.vercel.app/api/extract-corrections")!
@@ -267,8 +275,8 @@ enum APIService {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.timeoutInterval = 120
 
+            if let t = await bearerHeader() { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
             let body: [String: Any] = [
-                "user_id": userId,           // TODO: Replace with authenticated user_id
                 "original_note": originalNote,
                 "edited_note": editedNote,
             ]

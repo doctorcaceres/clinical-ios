@@ -240,10 +240,8 @@ struct TrainingChatView: View {
         // Fire-and-forget summary save if there was any exchange
         if !messages.isEmpty {
             let history = messages.map { ["role": $0.role, "content": $0.content] }
-            // TODO: Replace with authenticated user_id
-            let uid = app.userId
             Task.detached {
-                await APIService.saveChatSession(userId: uid, history: history)
+                await APIService.saveChatSession(history: history)
             }
         }
         dismiss()
@@ -263,9 +261,7 @@ struct TrainingChatView: View {
                 // Build conversation history for the API
                 let history = messages.dropLast().map { ["role": $0.role, "content": $0.content] }
 
-                // TODO: Replace with authenticated user_id
                 let response = try await APIService.trainingChat(
-                    userId: app.userId,
                     message: text,
                     history: history
                 )
