@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// One-screen onboarding for a doctor signing in for the first time with an
-/// empty profile: point to Training Mode and explain that the first few
-/// Save Finals teach the app their style.
+/// empty profile. Two action buttons route straight into the two ways of
+/// teaching Clinical their style; "Skip for now" goes to Home.
 struct WelcomeView: View {
     @EnvironmentObject var app: AppState
 
@@ -21,38 +21,62 @@ struct WelcomeView: View {
                 .foregroundColor(C.text)
                 .padding(.bottom, 18)
 
-            Text("Record an encounter and Clinical writes the note. Your profile starts empty — two ways to teach it your style:")
+            Text("Record an encounter and Clinical writes the note. Your profile starts empty. Two ways to teach it your style:")
                 .font(.system(size: 14))
                 .foregroundColor(C.textMuted)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 330)
-                .padding(.bottom, 16)
+                .padding(.bottom, 28)
 
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 8) {
-                    Text("1.").font(.system(size: 14, weight: .semibold)).foregroundColor(C.warning)
-                    Text("**Training Mode** — tell the assistant how you write. Every preference becomes a rule.")
-                        .font(.system(size: 14)).foregroundColor(C.textSec)
+            VStack(spacing: 6) {
+                Button {
+                    app.dismissWelcome()
+                    app.push(.trainingChat)
+                } label: {
+                    Text("Start a training session")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(C.bg)
+                        .frame(maxWidth: 300)
+                        .padding(.vertical, 14)
+                        .background(C.accent)
+                        .cornerRadius(12)
                 }
-                HStack(alignment: .top, spacing: 8) {
-                    Text("2.").font(.system(size: 14, weight: .semibold)).foregroundColor(C.accent)
-                    Text("**Save Final** — your first few edited notes teach it automatically.")
-                        .font(.system(size: 14)).foregroundColor(C.textSec)
+                .buttonStyle(PressStyle())
+
+                Text("Tell it how you write. Every preference becomes a rule.")
+                    .font(.system(size: 12))
+                    .foregroundColor(C.textDim)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 300)
+                    .padding(.bottom, 14)
+
+                Button {
+                    app.dismissWelcome()
+                    app.push(.recording("new"))
+                } label: {
+                    Text("Record your first encounter")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(C.text)
+                        .frame(maxWidth: 300)
+                        .padding(.vertical, 14)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(C.borderPri, lineWidth: 2))
                 }
+                .buttonStyle(PressStyle())
+
+                Text("Edit the note and save it. Your edits teach it automatically.")
+                    .font(.system(size: 12))
+                    .foregroundColor(C.textDim)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 300)
             }
-            .frame(maxWidth: 330, alignment: .leading)
 
             Button { app.dismissWelcome() } label: {
-                Text("Get Started")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(C.bg)
-                    .frame(maxWidth: 300)
-                    .padding(.vertical, 14)
-                    .background(C.accent)
-                    .cornerRadius(12)
+                Text("Skip for now")
+                    .font(.system(size: 13))
+                    .foregroundColor(C.textMuted)
             }
             .buttonStyle(PressStyle())
-            .padding(.top, 28)
+            .padding(.top, 24)
 
             Spacer()
         }
