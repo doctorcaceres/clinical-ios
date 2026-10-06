@@ -68,15 +68,24 @@ struct WelcomeView: View {
                     .foregroundColor(C.textDim)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 300)
-            }
+                    .padding(.bottom, 14)
 
-            Button { app.dismissWelcome() } label: {
-                Text("Skip for now")
-                    .font(.system(size: 13))
-                    .foregroundColor(C.textMuted)
+                Button { app.dismissWelcome() } label: {
+                    Text("Explore the app first")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(C.text)
+                        .frame(maxWidth: 300)
+                        .padding(.vertical, 14)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(C.borderPri, lineWidth: 2))
+                }
+                .buttonStyle(PressStyle())
+
+                Text("You can train it any time from Home.")
+                    .font(.system(size: 12))
+                    .foregroundColor(C.textDim)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 300)
             }
-            .buttonStyle(PressStyle())
-            .padding(.top, 24)
 
             Spacer()
         }
